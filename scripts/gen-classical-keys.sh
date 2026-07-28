@@ -37,7 +37,19 @@ gen_leaf() {
   keytool -certreq -alias "$name" -keystore "$KEYS_DIR/$name.jks" -storepass "$PASS" \
     -file "$KEYS_DIR/$name.csr"
 
+  # -sigalg must be passed here too, not just at -genkeypair: keytool's
+  # -gencert defaults to its own choice (observed: SHA384withECDSA) which
+  # mismatches a P-256 CA key. BCJSSE only offers an ECDSA signature scheme
+  # when its matching curve is among the active named groups, so a
+  # SHA384withECDSA chain signature silently requires secp384r1 to be
+  # active - restricting groups then breaks the server's own cert-chain
+  # validation with a confusing "no selectable cipher suite" error that
+  # looks like a key-exchange failure but is actually a signature-scheme
+  # credential failure. Root-caused via an independent Opus audit after an
+  # initial (wrong) suspicion that BC itself was broken - see
+  # docs/bouncycastle-pqc-notes.md.
   keytool -gencert -alias ca -keystore "$KEYS_DIR/ca.jks" -storepass "$PASS" \
+    -sigalg SHA256withECDSA \
     -infile "$KEYS_DIR/$name.csr" -outfile "$KEYS_DIR/$name.crt" \
     -validity "$VALIDITY_DAYS" -rfc
 

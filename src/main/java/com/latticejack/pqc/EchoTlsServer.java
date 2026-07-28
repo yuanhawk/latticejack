@@ -54,11 +54,14 @@ public final class EchoTlsServer {
                 System.out.println("[" + cfg.label() + "] server: handshake complete protocol="
                         + session.getProtocol() + " cipherSuite=" + session.getCipherSuite());
                 // NOTE: standard javax.net.ssl.SSLSession does not expose the
-                // negotiated key-exchange group or signature scheme directly.
-                // Verify those with -Djavax.net.debug=ssl:handshake (see README) —
-                // do not assume a hybrid PQC group negotiated just because the
-                // handshake succeeded; a silent classical fallback is possible
-                // and must be ruled out explicitly (arm-hackathon-plan.md §8).
+                // negotiated key-exchange group or signature scheme directly,
+                // and BCJSSE has no BC-specific accessor for it either (checked
+                // BCExtendedSSLSession/BCSSLConnection). Do not assume a hybrid
+                // PQC group negotiated just because the handshake succeeded -
+                // a silent classical fallback is possible and must be ruled
+                // out explicitly (arm-hackathon-plan.md §8). run-after.sh does
+                // this via BC's java.util.logging output (NOT -Djavax.net.debug,
+                // which BCJSSE doesn't honor) - see MIGRATION.md "Gotchas".
 
                 try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                         PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {

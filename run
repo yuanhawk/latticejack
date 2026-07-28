@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Matches the `./run before` / `./run after` invocation named in
+# arm-hackathon-plan.md §3 Component A's definition of done.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+case "${1:-}" in
+  before) exec ./run-before.sh ;;
+  after)  exec ./run-after.sh ;;
+  *)
+    echo "usage: ./run {before|after}" >&2
+    exit 1
+    ;;
+esac

@@ -3,38 +3,40 @@
 Arm AI Optimization Challenge, Track 2 (Migration/Adoption). Full plan: [arm-hackathon-plan.md](arm-hackathon-plan.md).
 
 Migrates a Java TLS/mTLS reference service from classical crypto
-(ECDSA/X25519) to hybrid post-quantum crypto (ML-KEM/ML-DSA), then tunes the
-migrated path for Arm64 (AWS Graviton / Ampere).
+(ECDSA/X25519) to hybrid post-quantum crypto (ML-KEM), then tunes the
+migrated path for Arm64 (AWS Graviton / Ampere). Migration mechanics: see
+[MIGRATION.md](MIGRATION.md).
 
 ## Status
 
 | Piece | State |
 |---|---|
 | **Before** (classical mTLS, JDK-only) | Working — `./run-before.sh` |
-| **After** (hybrid X25519MLKEM768 KEX) | In progress, known gap — `./run-after.sh` fails at a specific, documented BouncyCastle group-negotiation issue. See [docs/bouncycastle-pqc-notes.md](docs/bouncycastle-pqc-notes.md) §3a. |
-| ML-DSA certificate auth | Not started — experimental upstream in BouncyCastle, not enabled by default ([bcgit/bc-java#2102](https://github.com/bcgit/bc-java/issues/2102)) |
+| **After** (hybrid X25519MLKEM768 KEX) | **Working** — `./run-after.sh`, self-verifying (fails loudly if the hybrid group doesn't actually negotiate). See [MIGRATION.md](MIGRATION.md) and [docs/bouncycastle-pqc-notes.md](docs/bouncycastle-pqc-notes.md) §3a. |
+| ML-DSA certificate auth | **Deliberately deferred** to a stretch goal — experimental upstream in BouncyCastle, not enabled by default ([bcgit/bc-java#2102](https://github.com/bcgit/bc-java/issues/2102)). See MIGRATION.md "Scope." |
 | Arm64 benchmarking (B1/B2) | Not started |
 | Authoring guardrail / CBOM (Component C) | Not started |
 
 ## Quick start
 
-Requires JDK 21 and Maven.
+Requires JDK 21 and Maven (`./run` / `run-before.sh` / `run-after.sh` pin
+JDK 21 automatically via `scripts/require-jdk21.sh`, even if `java`/`mvn` on
+`PATH` resolve to something else).
 
 ```bash
-./run-before.sh                    # classical mTLS handshake — works end to end
-LATTICEJACK_DEBUG=1 ./run-after.sh # hybrid PQC KEX attempt — currently fails, see docs/
+./run before   # classical mTLS handshake
+./run after    # hybrid PQC key exchange, verified negotiating (not silently classical)
 ```
 
 Both scripts generate their own test keystores under `keys/classical/` on
 first run (`scripts/gen-classical-keys.sh`, ECDSA P-256, 30-day validity —
 never commit these; `.gitignore` already excludes them).
 
-Set `LATTICEJACK_DEBUG=1` to dump the full TLS handshake
-(`-Djavax.net.debug=ssl:handshake`), which is how to verify what actually
-negotiated — see the correctness note in `EchoTlsServer.java` and
-arm-hackathon-plan.md §8: a handshake that looks PQC but silently falls back
-to classical is not an acceptable outcome, so it's worth checking explicitly
-rather than trusting a "handshake complete" line alone.
+`./run after` verifies the negotiated group is actually the hybrid one
+before reporting success — see MIGRATION.md's "Gotchas" section and
+`docs/bouncycastle-pqc-notes.md` §3a for why that verification exists and
+how it works (BCJSSE exposes no direct API for this). Set
+`LATTICEJACK_PORT` to change the port either script binds to.
 
 ## Running on Arm64
 
@@ -47,8 +49,10 @@ JDK 21 environment. Once there, the same two commands above apply.
 ```
 src/main/java/com/latticejack/pqc/   the reference TLS/mTLS service (Component A)
 scripts/gen-classical-keys.sh        classical (ECDSA P-256) test keystore generation
-run-before.sh / run-after.sh         the two configurations, per arm-hackathon-plan.md §3
-docs/bouncycastle-pqc-notes.md       BouncyCastle PQC/JSSE research + live debugging findings
+scripts/require-jdk21.sh             JDK 21 pinning, sourced by the run scripts
+run / run-before.sh / run-after.sh   the two configurations, per arm-hackathon-plan.md §3
+MIGRATION.md                         the step-by-step migration procedure + gotchas
+docs/bouncycastle-pqc-notes.md       BouncyCastle PQC/JSSE research + full debugging log
 docs/arm64-instance-setup.md         Arm64 provisioning guidance
 ```
 

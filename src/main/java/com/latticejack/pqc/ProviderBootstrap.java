@@ -41,20 +41,19 @@ final class ProviderBootstrap {
     private ProviderBootstrap() {}
 
     /**
-     * Deliberately a single entry, not a preference list with classical
-     * fallback: a handshake that silently falls back to a classical group
-     * would look PQC-migrated while not being one - "a disqualifier-level
-     * embarrassment" per arm-hackathon-plan.md §8. Restricting to exactly
-     * this group means success is unambiguous proof of hybrid negotiation.
-     *
-     * KNOWN GAP (tracked, not yet resolved): with only this group offered,
-     * the handshake currently fails - confirmed via direct debugging that
-     * BC's credential/context wiring is otherwise correct (a handshake with
-     * BC's full default group list succeeds), so the gap is specific to
-     * X25519MLKEM768 negotiation itself. See docs/bouncycastle-pqc-notes.md
-     * for the investigation and next steps.
+     * Hybrid group first (preferred), secp256r1 second - NOT a "silent
+     * classical fallback" loophole, but a hard requirement: BCJSSE only
+     * offers an ECDSA signature scheme when its matching curve is active
+     * among the named groups, so an ECDSA leaf certificate's own signature
+     * scheme (and its issuer's, up the chain) needs secp256r1 present or
+     * the server can't even validate its own certificate. Confirmed via
+     * an independent audit (docs/bouncycastle-pqc-notes.md §3a) that with
+     * BOTH groups offered, BC selects X25519MLKEM768 preferentially (a
+     * HelloRetryRequest for it is visible in the handshake trace) - verify
+     * this explicitly per-run rather than trusting group ORDER alone, via
+     * LATTICEJACK_DEBUG=1 and the check run-after.sh does automatically.
      */
-    static final String[] NAMED_GROUPS = {"X25519MLKEM768"};
+    static final String[] NAMED_GROUPS = {"X25519MLKEM768", "secp256r1"};
 
     static void install() {
         BouncyCastleProvider bc = new BouncyCastleProvider();

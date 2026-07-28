@@ -6,6 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+source ./scripts/require-jdk21.sh
 ./scripts/gen-classical-keys.sh
 
 KEYS_DIR="keys/classical"

@@ -1,23 +1,25 @@
 #!/usr/bin/env bash
-# Component A "after" (in progress): attempts a hybrid TLS 1.3 key exchange
-# (X25519MLKEM768 only, no classical fallback - see ProviderBootstrap.NAMED_GROUPS)
-# via BouncyCastle BCJSSE 1.85, layered on the SAME classical ECDSA certs as
-# run-before.sh.
+# Component A "after": hybrid TLS 1.3 key exchange (X25519MLKEM768, preferred
+# over the secp256r1 fallback ProviderBootstrap.NAMED_GROUPS requires - see
+# that file's Javadoc for why a fallback is a hard requirement, not a loophole)
+# via BouncyCastle BCJSSE 1.85, on the SAME classical ECDSA certs as
+# run-before.sh (ML-DSA cert auth is a separate, deferred gap - see
+# docs/bouncycastle-pqc-notes.md and MIGRATION.md).
 #
-# CURRENT STATE: this correctly runs BC's provider stack (a real bug in
-# SSLContext.getDefault()'s BC credential-bridging was found and fixed to get
-# here - see docs/bouncycastle-pqc-notes.md) but the handshake still fails
-# with handshake_failure: X25519MLKEM768 negotiation on its own does not yet
-# succeed, even though a handshake using BC's full default group list does.
-# This is a known, tracked gap (docs/bouncycastle-pqc-notes.md), not a script
-# bug - it deliberately does NOT fall back to a classical group, because a
-# handshake that silently falls back would misrepresent itself as PQC-migrated.
-#
-# ML-DSA certificate-based authentication is a separate, also-unresolved gap:
-# implemented upstream in BC but not enabled by default (bcgit/bc-java#2102).
+# This script does not just trust "handshake complete" - BCJSSE exposes no
+# programmatic accessor for the negotiated named group (checked: neither
+# BCExtendedSSLSession nor BCSSLConnection), and BCJSSE logs via
+# java.util.logging, not -Djavax.net.debug, so it enables that logging and
+# asserts a HelloRetryRequest occurred: since the hybrid group is listed
+# first, an HRR means the client's cheap first guess (classical) wasn't what
+# got selected, and a second ClientHello then carried the actual (larger,
+# ML-KEM-inclusive) key_share - the same signal an independent audit used to
+# confirm this. See arm-hackathon-plan.md §8: don't trust a PQC label without
+# checking for a silent classical fallback.
 set -euo pipefail
 cd "$(dirname "$0")"
 
+source ./scripts/require-jdk21.sh
 ./scripts/gen-classical-keys.sh
 
 KEYS_DIR="keys/classical"
@@ -31,34 +33,52 @@ mvn -q org.apache.maven.plugins:maven-dependency-plugin:3.7.0:build-classpath \
 
 CP="target/classes:$(cat target/classpath.txt)"
 
-DEBUG_OPTS=()
-if [ "${LATTICEJACK_DEBUG:-0}" = "1" ]; then
-  DEBUG_OPTS=(-Djavax.net.debug=ssl:handshake)
-fi
-
 COMMON_OPTS=(
+  -Djava.util.logging.config.file=scripts/bc-logging.properties
   -Djavax.net.ssl.trustStore="$KEYS_DIR/truststore.jks"
   -Djavax.net.ssl.trustStorePassword="$PASS"
   -Dlatticejack.tls.label=after-pqc-kex
   -Dlatticejack.tls.port="$PORT"
   -Dlatticejack.tls.pqc=true
-  "${DEBUG_OPTS[@]+"${DEBUG_OPTS[@]}"}"
 )
 
-echo "=== [after] hybrid X25519MLKEM768 key exchange attempt (ECDSA certs) on port $PORT ==="
-echo "    known gap: this currently fails with handshake_failure - see docs/bouncycastle-pqc-notes.md"
+echo "=== [after] hybrid X25519MLKEM768 key exchange on port $PORT ==="
+
+SERVER_LOG="$(mktemp)"
+CLIENT_LOG="$(mktemp)"
+cleanup() {
+  kill "$SERVER_PID" 2>/dev/null || true
+  rm -f "$SERVER_LOG" "$CLIENT_LOG"
+}
+trap cleanup EXIT
 
 java "${COMMON_OPTS[@]}" \
   -Djavax.net.ssl.keyStore="$KEYS_DIR/server.jks" \
   -Djavax.net.ssl.keyStorePassword="$PASS" \
-  -cp "$CP" com.latticejack.pqc.EchoTlsServer &
+  -cp "$CP" com.latticejack.pqc.EchoTlsServer > "$SERVER_LOG" 2>&1 &
 SERVER_PID=$!
-trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
 sleep 1
 
 java "${COMMON_OPTS[@]}" \
   -Djavax.net.ssl.keyStore="$KEYS_DIR/client.jks" \
   -Djavax.net.ssl.keyStorePassword="$PASS" \
-  -cp "$CP" com.latticejack.pqc.EchoTlsClient
+  -cp "$CP" com.latticejack.pqc.EchoTlsClient 2>&1 | tee "$CLIENT_LOG"
 
 wait "$SERVER_PID"
+cat "$SERVER_LOG" >&2
+
+HELLO_COUNT="$(grep -c "ClientHello extensions" "$CLIENT_LOG" || true)"
+if [ "$HELLO_COUNT" -lt 2 ]; then
+  echo "" >&2
+  echo "VERIFICATION FAILED: handshake completed but no HelloRetryRequest was" >&2
+  echo "observed (only $HELLO_COUNT ClientHello, expected 2). Since X25519MLKEM768" >&2
+  echo "is the first-preference group, a single-round handshake with no HRR is" >&2
+  echo "evidence the negotiation silently used the classical secp256r1 fallback" >&2
+  echo "instead - see ProviderBootstrap.NAMED_GROUPS and docs/bouncycastle-pqc-notes.md." >&2
+  exit 1
+fi
+
+echo ""
+echo "VERIFIED: HelloRetryRequest observed ($HELLO_COUNT ClientHellos) - consistent"
+echo "with X25519MLKEM768 (the first-preference group) being negotiated, not a"
+echo "silent fallback to secp256r1."
