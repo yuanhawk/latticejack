@@ -41,7 +41,15 @@ CP="target/classes:$(cat target/classpath.txt)"
 
 PQC_OPTS=()
 if [ "$CONFIG" = "after" ]; then
-  PQC_OPTS=(-Djava.util.logging.config.file=scripts/bc-logging.properties -Dlatticejack.tls.pqc=true)
+  # Deliberately NOT enabling scripts/bc-logging.properties here, unlike
+  # run-after.sh: that FINEST-level logging is essential for verifying
+  # negotiation there, but printing thousands of debug lines per handshake
+  # would itself perturb the very latency/CPU numbers this script exists to
+  # measure cleanly. Found by testing, not by inspection: an earlier version
+  # of this script had it on unconditionally for every "after" pass,
+  # contaminating timed measurements with logging overhead - see
+  # docs/bouncycastle-pqc-notes.md.
+  PQC_OPTS=(-Dlatticejack.tls.pqc=true)
 fi
 
 COMMON_OPTS=(
@@ -90,6 +98,15 @@ run_pass() {
 run_pass latency "$((ITERATIONS + WARMUP))" "$RESULTS_DIR/${CONFIG}-latency-${TIMESTAMP}.csv"
 run_pass throughput "$((ITERATIONS + WARMUP))"
 run_pass bytes "$ITERATIONS" "$RESULTS_DIR/${CONFIG}-bytes-${TIMESTAMP}.csv"
+
+# BenchmarkClient's resumption mode uses its own warmup calc
+# (max(5, iterations/10) pairs) independent of $WARMUP above - mirror it
+# here so the server accepts exactly enough connections (2 per pair: full +
+# resumed-attempt) and neither hangs waiting for more nor gets extras
+# refused after the client's done.
+RESUMPTION_WARMUP_PAIRS=$(( ITERATIONS / 10 > 5 ? ITERATIONS / 10 : 5 ))
+RESUMPTION_CONNECTIONS=$(( (RESUMPTION_WARMUP_PAIRS + ITERATIONS) * 2 ))
+run_pass resumption "$RESUMPTION_CONNECTIONS" "$RESULTS_DIR/${CONFIG}-resumption-${TIMESTAMP}.csv"
 
 echo ""
 echo "=== [$CONFIG] done - results in $RESULTS_DIR ==="
