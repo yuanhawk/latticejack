@@ -1,0 +1,4 @@
+     bool UseDilithiumIntrinsics                   = true                                   {diagnostic} {default}
+     bool UseKyberIntrinsics                       = true                                   {diagnostic} {default}
+     bool UseSHA3Intrinsics                        = false                                  {diagnostic} {default}
+     bool UseSIMDForSHA3Intrinsic                  = true                                 {ARCH product} {default}

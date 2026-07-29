@@ -175,12 +175,40 @@ exciting outcome.
 choice is only relevant once `UseSHA3Intrinsics` is forced on in the first
 place — since that parent flag's forced-on effect was already marginal and
 inconsistent, isolating the SIMD/GPR sub-variant on top of it was judged
-unlikely to change the conclusion, and wasn't run on real hardware to avoid
-further VM time for a diminishing-returns check. Likewise, JDK 26 (which
-might carry more complete Neoverse SHA3 work) has no `apt` package for
-Ubuntu 24.04 yet — consistent with this project's own JDK-adoption-lag
-research — and testing it would need a manual tarball install, not done
-here.
+unlikely to change the conclusion.
+
+## JDK 26 update: the expected fix does not appear to have shipped
+
+Public research surfaced a specific, plausible fix for exactly this gap:
+**JDK-8359256** ("AArch64: Use SHA3 GPR intrinsic where it's faster"),
+reviewed October 2025, whose actual change was to make
+`UseSIMDForSHA3Intrinsic` default to `false` everywhere except Apple
+Silicon — i.e., ship Neoverse-N2 with the GPR path by default, backed by
+OpenJDK's own measured data (23-53% faster on simpler cores, 8-14% faster
+on Graviton 3 — consistent with, if a bit larger than, the noisy ~3.9%
+this project measured for the parent flag). A reference to a possible
+backout (JDK-8371432) was also found, with the true final status unclear
+from public sources alone.
+
+So we checked directly: manually installed JDK 26.0.2 (no `apt` package
+for Ubuntu 24.04 yet — Adoptium/`jdk.java.net` tarball instead) on the same
+Cobalt 100 VM and re-read the flags (`jdk26-flags-cobalt100.txt`):
+
+| Flag | JDK 25.0.3 (Neoverse-N2) | **JDK 26.0.2 (Neoverse-N2)** |
+|---|---|---|
+| `UseSHA3Intrinsics` | `false` | `false` (unchanged) |
+| `UseSIMDForSHA3Intrinsic` | `true` | **`true` (unchanged)** |
+
+**Identical defaults.** The JDK-8359256 fix does not appear to be in JDK
+26.0.2 — consistent with the backout reference, though not provable from
+outside OpenJDK's own issue tracker. A single-run microbenchmark pass on
+JDK 26 did show a lower keygen p50 than JDK 25's 3-run average (56.4µs vs.
+65.4µs) — but per this project's own established discipline (a single-run
+number has repeatedly proven unreliable on this VM throughout this
+investigation), that's noted as a data point, not a confirmed improvement,
+without a proper 3-run average to back it. Given the flag-level evidence is
+unambiguous and cheap to obtain, it's the primary finding here; the timing
+number is secondary color.
 
 **Caveats, stated plainly:**
 - Both regimes show wide tail-latency variance (p99/max values well above
@@ -211,7 +239,9 @@ HotSpot's own default being empirically correct rather than overly
 conservative. That's a genuinely differentiated, hardware-specific,
 mechanism-level finding — not something you'd get from reading the JEP or
 the OpenJDK PR alone, and not something further JVM configuration closes.
-Two further angles were identified but not chased to real-hardware
-confirmation given diminishing expected returns: the SIMD-vs-GPR SHA3
-sub-variant, and a newer JDK (26) that might carry more complete
-Neoverse-specific work.
+JDK 26.0.2 was checked directly on the same hardware and carries the
+identical flag defaults as JDK 25.0.3 — the specific fix that looked like
+it might close this gap (JDK-8359256) does not appear to have shipped,
+consistent with a public reference to it being backed out. As of this
+JDK's current release, the gap stands, precisely explained rather than
+merely observed, and not closed by upgrading.
