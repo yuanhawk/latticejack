@@ -485,6 +485,17 @@ Framed for the audience the plan's own rationale names for Track 2
 where a full rewrite is never realistic and a migration has to be
 incremental, auditable, and defensible to a compliance review. Full
 detail: [component-c/README.md](component-c/README.md).
+[docs/regulated-deployment-guide.md](docs/regulated-deployment-guide.md)
+extends this into a concrete deployment recommendation for that audience:
+why staying in Java (not a native rewrite) is the right call given what
+this project's own evidence shows about where PQC's real cost actually
+lives, which of the eight B2 levers to reach for at three different
+deployment shapes, and a regulatory-context matrix distinguishing FIPS
+-140 module validation from algorithm standardization and from
+`mlkem-native`'s formal verification - three genuinely different things
+this space often conflates - with explicit hedging everywhere current
+CMVP/FedRAMP status needs live verification rather than being assumed
+from this project's own (non-FIPS) testing.
 
 ### What's not done (stated plainly)
 

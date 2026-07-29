@@ -140,6 +140,7 @@ component-c/cbom/                    CycloneDX CBOM generator, ./run cbom {befor
 MIGRATION.md                         the step-by-step migration procedure + gotchas
 docs/bouncycastle-pqc-notes.md       BouncyCastle PQC/JSSE research + full debugging log
 docs/arm64-instance-setup.md         Arm64 provisioning guidance
+docs/regulated-deployment-guide.md   why Java (not a rewrite) for financial-sector migration, FIPS/FedRAMP guidance
 ```
 
 ## License
