@@ -33,15 +33,39 @@ measurement bugs — a session ticket never being read so "resumption" was
 silently falling back to full handshakes, JIT cold-start masquerading as a
 resumption benefit, and asymmetric instrumentation between the two timed
 code paths — with a true, fixed effect of under 2%).
-The headline B2 result — that JDK 25's built-in ML-KEM, marketed
-elsewhere at "roughly on par with OpenSSL," only delivers ~8.7% over
-BouncyCastle's plain-Java implementation on real Arm64 server hardware
-(vs. ~51% on Apple Silicon, for the *identical* JVM flag) — is not
-something you'd find by reading the JEP. It required provisioning real
-Arm64 infrastructure, building a rigorous benchmark, and being willing to
-re-measure three times when a promising single-run number looked too good
-to trust. That discipline, applied consistently, is the actual
-differentiator here.
+
+**Eight optimization levers, not one or two** — and the two biggest wins
+are backed by hardware evidence, not just correlation. GraalVM
+native-image eliminates JVM startup entirely and measures **~7.9x faster
+cold-start**; a real Java FFM integration of hand-tuned NEON ML-KEM
+assembly (mlkem-native) measures **~4.0x faster end-to-end**, ~85% of its
+standalone ceiling surviving the FFI crossing cost. Neither is a guess:
+**Arm's own hardware-level profiling tool (Arm Performix)**, pointed at
+the exact benchmark producing this project's headline 88ms handshake
+number, found directly that ~73% of all CPU time is JVM/JIT-compiler
+overhead and only ~5.55% is BouncyCastle's own crypto and protocol code
+combined — hard evidence for exactly the mechanism native-image attacks,
+not inference. A parallel investigation (RustCrypto vs. mlkem-native vs.
+`rustpq/pqcrypto`) answered a real, separate question with real data too:
+Rust's memory safety costs nothing relative to Java, but the ~4x gap to
+mlkem-native was always about hand-tuned, chip-specific assembly
+investment, not which language calls it — confirmed with both a negative
+result (portable Rust: ~3x slower) and a positive control (Rust wrapping
+the same hand-tuned C: within 3.3% of native).
+
+That same discipline extends past the optimization core: **Component C**
+(the `pqc-authoring` guardrail skill and a CycloneDX CBOM) is built, not
+just planned, and each carries its own verification — the guardrail's
+checklist is proven against a real regression this project hit once, not
+just plausible-sounding; the CBOM is validated against the actual
+published CycloneDX 1.6 JSON schema, and it stays honest even when that's
+inconvenient (the "after" CBOM still lists the certificate-signature
+algorithm as unmigrated, because it genuinely is). Provisioning real Arm64
+infrastructure, being willing to re-measure three times when a promising
+single-run number looked too good to trust, and reaching for Arm's own
+tooling to settle an open question with data rather than leaving it
+open indefinitely — that discipline, applied consistently across eight
+levers and two components, is the actual differentiator here.
 
 ## Functionality / Output
 
@@ -481,6 +505,34 @@ itself, replacing BC's pure-Java ML-KEM path with calls into the native
 library for a real end-to-end handshake, so no full-handshake number exists
 for this lever the way levers 1-4 have - the FFM binding calls the three
 KEM operations directly, not through the actual mTLS reference service.
+The same gap applies to lever 7 (RustCrypto) and lever 8 (pqcrypto).
+
+**An x86-vs-Arm64 cross-reference has not been done.** `arm-hackathon-plan.md`
+§3 asks for one explicitly as a B2 deliverable ("an x86-vs-Arm64
+cross-reference showing the Arm efficiency angle"). Every "local" signal
+compared against real-hardware results in this write-up (Apple Silicon vs.
+Cobalt 100) is ARM-vs-ARM, not x86-vs-Arm - a real, unmet piece of the
+plan's own ask, not a style choice. What exists instead, and is arguably
+stronger evidence for "clearly leverages Arm-powered platforms" (the
+rubric's actual wording, per the official rules) even without an x86
+baseline: real Arm64 hardware for every finding in this document, and Arm
+Performix (Arm's own profiling tool) used directly to resolve an open
+question with real Neoverse-N2 microarchitecture data.
+
+**No demo video.** Optional per the official rules, but explicitly called
+out as "high-leverage" - front-loaded, it would show `./run before` /
+`./run after` succeeding on real Arm64, the before/naive/tuned benchmark
+story, and the two Component C artifacts. Not made this session.
+
+**The repository is currently private.** Checked directly via `gh repo
+view` (not assumed): GitHub correctly detects and would display the
+Apache-2.0 license in the About section - that specific concern is
+resolved - but `isPrivate: true`. The official rules require "the
+repository must be public and open source" as a submission requirement,
+not an optional nicety - judges cannot access a private repo at all. This
+needs to change before submission; not done automatically here since
+making a repo public is the kind of action a user should decide the
+timing of, not something to flip silently.
 
 ## Setup Instructions
 
