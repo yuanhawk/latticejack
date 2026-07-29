@@ -1,0 +1,23 @@
+[require-jdk21] using openjdk version "21.0.11" 2026-04-21
+### native-image: server-launch-to-client-done wall time, N=10 ###
+native run 1: OK 291
+native run 2: OK 289
+native run 3: OK 291
+native run 4: OK 291
+native run 5: OK 289
+native run 6: OK 289
+native run 7: OK 290
+native run 8: OK 290
+native run 9: OK 290
+native run 10: OK 291
+### regular JVM (pinned JDK21): server-launch-to-client-done wall time, N=10 ###
+jvm run 1: OK 2358
+jvm run 2: OK 2340
+jvm run 3: OK 2333
+jvm run 4: OK 2239
+jvm run 5: OK 2265
+jvm run 6: OK 2369
+jvm run 7: OK 2228
+jvm run 8: OK 2246
+jvm run 9: OK 2183
+jvm run 10: OK 2263

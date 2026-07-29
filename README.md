@@ -18,7 +18,7 @@ Migration mechanics: see [MIGRATION.md](MIGRATION.md).
 | **After** (hybrid X25519MLKEM768 KEX) | **Working** — `./run after`, self-verifying, verified on real Arm64. See [MIGRATION.md](MIGRATION.md) and [docs/bouncycastle-pqc-notes.md](docs/bouncycastle-pqc-notes.md) §3a. |
 | ML-DSA certificate auth | **Deliberately deferred** to a stretch goal — experimental upstream in BouncyCastle, not enabled by default ([bcgit/bc-java#2102](https://github.com/bcgit/bc-java/issues/2102)). See MIGRATION.md "Scope." |
 | Arm64 benchmarking (B1) | **Done on real hardware** — Azure Cobalt 100 (Neoverse-N2), `./run-benchmark.sh`. PQC hybrid costs ~95% more p50 latency, ~51% less throughput vs. classical baseline. Two methodology bugs found and fixed along the way (debug logging contaminating timings). See [benchmarks/samples/azure-cobalt100-2vcpu/README.md](benchmarks/samples/azure-cobalt100-2vcpu/README.md). |
-| Arm64 optimization (B2) | **Two levers tried on real hardware, both honest null results; one root-caused finding.** Lever 1 (session resumption): ~2%/~0% benefit, not the plan's assumed "near-guaranteed win." Lever 2 (JVM flags): every variant landed within ~1% of baseline on real Arm64 — a promising -15.5% seen locally (Apple Silicon) didn't hold. Bonus finding, precisely explained via direct intrinsic isolation (`-XX:±UseKyberIntrinsics` A/B test, 3-run averaged): JDK 25's built-in ML-KEM (marketed at ~2x BC's speed) only gets ~8.7% from its AArch64 intrinsic on real Arm64 server hardware vs. ~51% on Apple Silicon for the identical flag — confirmed active, just ~6x weaker on this chip, not a misconfiguration. BC is often *faster* at cold start. Consistent pattern across all three findings: ML-KEM's own crypto cost dominates so heavily on this hardware that every secondary lever tested so far is noise or single-digit-percent by comparison. See [benchmarks/samples/azure-cobalt100-2vcpu/README.md](benchmarks/samples/azure-cobalt100-2vcpu/README.md) and [benchmarks/mlkem-microbench/README.md](benchmarks/mlkem-microbench/README.md). |
+| Arm64 optimization (B2) | **Three levers tried on real hardware: two honest null results, one confirmed positive finding.** Lever 1 (session resumption): ~2%/~0% benefit, not the plan's assumed "near-guaranteed win." Lever 2 (JVM flags): every variant landed within ~1% of baseline on real Arm64 — a promising -15.5% seen locally (Apple Silicon) didn't hold. Bonus finding, precisely explained via direct intrinsic isolation (`-XX:±UseKyberIntrinsics` A/B test, 3-run averaged): JDK 25's built-in ML-KEM (marketed at ~2x BC's speed) only gets ~8.7% from its AArch64 intrinsic on real Arm64 server hardware vs. ~51% on Apple Silicon for the identical flag. **Lever 4 (GraalVM native-image): ~7.9x faster cold-start (290ms vs 2292ms, 3-run averaged, 60/60 runs succeeded) for launching a fresh instance and completing one hybrid-PQC handshake** — the first positive B2 result, and the real-hardware gap is *larger* than the local signal that motivated trying it, the opposite of every other lever's local-vs-real pattern. This measures cold-start, not warm steady-state throughput — see [benchmarks/graalvm-native-image/README.md](benchmarks/graalvm-native-image/README.md) for that caveat and the two GraalVM/BouncyCastle build-time incompatibilities found and fixed along the way. See also [benchmarks/samples/azure-cobalt100-2vcpu/README.md](benchmarks/samples/azure-cobalt100-2vcpu/README.md) and [benchmarks/mlkem-microbench/README.md](benchmarks/mlkem-microbench/README.md). |
 | Authoring guardrail / CBOM (Component C) | Not started |
 
 ## Infrastructure
@@ -65,6 +65,14 @@ implementation — not part of the main build. See its
 "JDK 25 makes ML-KEM ~2x faster" claim doesn't hold up on real Arm64 server
 hardware the way it does on Apple Silicon.
 
+`native-image/` + `scripts/build-native-image.sh` build a GraalVM
+native-image (AOT-compiled) version of the "after" service — requires a
+GraalVM JDK 21 install (`GRAALVM_HOME`), separate from the pinned JDK 21
+above. `scripts/bench-native-image.sh` compares its cold-start latency
+against the regular JVM; see
+[benchmarks/graalvm-native-image/README.md](benchmarks/graalvm-native-image/README.md)
+for the real-hardware result (B2 lever 4, ~7.9x faster cold-start).
+
 ## Running on Arm64
 
 See [docs/arm64-instance-setup.md](docs/arm64-instance-setup.md) for
@@ -80,6 +88,8 @@ scripts/require-jdk21.sh             JDK 21 pinning, sourced by the run scripts
 run / run-before.sh / run-after.sh   the two configurations, per arm-hackathon-plan.md §3
 run-benchmark.sh, benchmarks/        B1 characterization harness (latency/throughput/bytes-on-wire)
 benchmarks/samples/                  tracked real-hardware results (not gitignored, unlike benchmarks/results/)
+native-image/, scripts/build-native-image.sh, scripts/bench-native-image.sh
+                                      GraalVM native-image build (B2 lever 4) + cold-start benchmark
 MIGRATION.md                         the step-by-step migration procedure + gotchas
 docs/bouncycastle-pqc-notes.md       BouncyCastle PQC/JSSE research + full debugging log
 docs/arm64-instance-setup.md         Arm64 provisioning guidance

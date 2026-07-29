@@ -99,12 +99,13 @@ measurement pass (full story in
 
 The plan's 40-point criterion rewards genuinely leveraging Arm-powered
 platforms with efficiency-minded design, not just deploying on Arm64. This
-project tried three concrete optimization levers, measured every one on
+project tried four concrete optimization levers, measured every one on
 real hardware (not a laptop), and reports what actually happened —
-including two honest null results and one precisely root-caused,
-non-obvious finding, all cross-validated with independent-model review
-(Opus and Fable, given the same question, converged independently) before
-being trusted.
+including two honest null results, one precisely root-caused, non-obvious
+finding, and one confirmed positive win, all cross-validated with
+independent-model review (Opus and Fable, given the same question,
+converged independently) or 3-run real-hardware averaging before being
+trusted.
 
 **Lever 1 — session resumption.** The plan's own risk register called this
 a "near-guaranteed win." It measurably was not: **1.8% (classical) / 0.3%
@@ -164,17 +165,54 @@ secondhand sources: **the fix has not shipped**, flag defaults are
 identical to JDK 25. Full mechanism-level writeup:
 [benchmarks/mlkem-microbench/README.md](benchmarks/mlkem-microbench/README.md).
 
-**The consistent throughline across all three levers:** ML-KEM's own
-cryptographic computation (dominated by Keccak/SHA3 hashing, not the NTT)
-is the real, hard-to-avoid cost on this hardware, and every secondary
-lever tried — session caching, JVM flags, even switching to a
+**Levers 1–3 share a throughline:** ML-KEM's own cryptographic computation
+(dominated by Keccak/SHA3 hashing, not the NTT) is the real, hard-to-avoid
+cost *once a connection is being negotiated*, and every secondary lever
+tried against that — session caching, JVM flags, even switching to a
 "faster" JDK-native implementation — is noise or single-digit-percent by
 comparison. That's a defensible, three-times-independently-confirmed
-finding, not a cherry-picked win, and it directly answers what "efficiency-
-minded design" on Arm64 actually requires for this workload: attacking the
-crypto primitive itself (native NEON acceleration via `mlkem-native`,
-identified but not yet attempted — the concrete next step) rather than
-tuning around it.
+finding for that specific cost.
+
+**Lever 4 — GraalVM native-image — targets a different cost entirely, and
+wins decisively.** All three levers above assume a JVM is already running
+and warmed; they attack the *handshake's* crypto cost. Native-image instead
+eliminates the *JVM startup* cost (class loading, classpath jar scanning,
+tiered-compilation JIT warmup) via ahead-of-time compilation to a native
+Arm64 executable. Measured as full cold-start latency — process launch to
+a completed hybrid-PQC handshake, server restarted fresh each iteration —
+against the same pinned-JDK21 regular JVM, 3-run averaged (60/60 runs
+succeeded, real Azure Cobalt 100 hardware):
+
+| Config | Mean cold-start (30 runs) |
+|---|---|
+| native-image | 290.3 ms |
+| Regular JVM (JDK 21) | 2292.2 ms |
+
+**~7.9x faster, an 87.3% reduction.** Unlike every other lever tried this
+session, the real-hardware gap here is *larger* than the local (Apple
+Silicon) signal that motivated trying it (~6x locally), not smaller —
+the opposite of the local-overstates-real pattern lever 2 and the JDK 25
+comparison both showed. Two GraalVM/BouncyCastle build-time
+incompatibilities had to be found and fixed to get a working binary at all
+(BC's JCE provider isn't recognized as build-time-verified by default, and
+forcing it to be breaks differently via BC's DRBG `SecureRandom` classes) —
+full mechanism: `native-image/README.md`. Correctness was verified the same
+way as the regular JVM build (HelloRetryRequest observed, confirming real
+hybrid negotiation, not a silent classical fallback).
+
+**This is a cold-start metric, not warm steady-state throughput** — it's
+the metric that matches a serverless / per-request-process / CLI-tool
+deployment shape, not necessarily a long-running server handling many
+connections (HotSpot's C2 JIT can out-optimize GraalVM's default,
+non-PGO AOT compilation once fully warmed; not re-measured here). Full
+results: [benchmarks/graalvm-native-image/README.md](benchmarks/graalvm-native-image/README.md).
+
+Together, the four levers point at a coherent picture of what "efficiency-
+minded design" on Arm64 actually requires for this workload: attacking
+handshake crypto cost directly (native NEON acceleration via
+`mlkem-native`, identified but not yet attempted) for a warm, long-running
+server; and using ahead-of-time compilation for anything that pays JVM
+startup cost per unit of work.
 
 ### Infrastructure — real, not simulated
 
