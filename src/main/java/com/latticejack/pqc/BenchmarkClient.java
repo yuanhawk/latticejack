@@ -332,6 +332,14 @@ public final class BenchmarkClient {
             applyPqcGroups(socket, pqc);
             socket.startHandshake();
             secondSessionId = socket.getSession().getId();
+            // Same pumpPendingRecords() call as the first connection, even
+            // though there's no third connection in this pair to resume
+            // into: without it, only the "full" side pays the pump-read
+            // overhead, understating the full-vs-resumed gap by however
+            // long that read/timeout takes - found by noticing "full"
+            // latency here didn't match "latency" mode's independently
+            // measured full-handshake number for the same config.
+            pumpPendingRecords(socket);
         }
         outLatencies[1] = System.nanoTime() - resumedStart;
 
