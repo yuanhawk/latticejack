@@ -15,8 +15,8 @@ Migration mechanics: see [MIGRATION.md](MIGRATION.md).
 | **Before** (classical mTLS, JDK-only) | Working — `./run before`, verified on real Arm64 |
 | **After** (hybrid X25519MLKEM768 KEX) | **Working** — `./run after`, self-verifying, verified on real Arm64. See [MIGRATION.md](MIGRATION.md) and [docs/bouncycastle-pqc-notes.md](docs/bouncycastle-pqc-notes.md) §3a. |
 | ML-DSA certificate auth | **Deliberately deferred** to a stretch goal — experimental upstream in BouncyCastle, not enabled by default ([bcgit/bc-java#2102](https://github.com/bcgit/bc-java/issues/2102)). See MIGRATION.md "Scope." |
-| Arm64 benchmarking (B1) | **Done on real hardware** — Azure Cobalt 100 (Neoverse-N2), `./run-benchmark.sh`. PQC hybrid costs ~97% more p50 latency, ~58% less throughput vs. classical baseline. See [benchmarks/samples/azure-cobalt100-2vcpu/README.md](benchmarks/samples/azure-cobalt100-2vcpu/README.md). |
-| Arm64 optimization (B2) | Not started — baseline numbers now in place to measure a tuning delta against |
+| Arm64 benchmarking (B1) | **Done on real hardware** — Azure Cobalt 100 (Neoverse-N2), `./run-benchmark.sh`. PQC hybrid costs ~95% more p50 latency, ~51% less throughput vs. classical baseline. Two methodology bugs found and fixed along the way (debug logging contaminating timings). See [benchmarks/samples/azure-cobalt100-2vcpu/README.md](benchmarks/samples/azure-cobalt100-2vcpu/README.md). |
+| Arm64 optimization (B2) | **Lever 1 (session resumption) tried, honestly negative** — contrary to the plan's "near-guaranteed win" assumption, measured benefit is ~2% (classical) / ~0% (PQC), after fixing three real benchmark bugs. PQC's ~0% result is flagged as an open question (BCJSSE shows no resumption-related log activity), not a confirmed root cause. See samples README above. Next lever not yet started. |
 | Authoring guardrail / CBOM (Component C) | Not started |
 
 ## Infrastructure
@@ -45,14 +45,16 @@ before reporting success — see MIGRATION.md's "Gotchas" section and
 how it works (BCJSSE exposes no direct API for this). Set
 `LATTICEJACK_PORT` to change the port either script binds to.
 
-## Benchmarking (Component B1)
+## Benchmarking (Component B1/B2)
 
 ```bash
-./run-benchmark.sh before   # classical baseline: latency, throughput, bytes-on-wire
-./run-benchmark.sh after    # hybrid PQC: same three metrics, for the before/after delta
+./run-benchmark.sh before   # classical baseline: latency, throughput, bytes-on-wire, resumption
+./run-benchmark.sh after    # hybrid PQC: same four passes, for the before/after delta
 ```
 
-See [benchmarks/README.md](benchmarks/README.md) for what's measured and how.
+See [benchmarks/README.md](benchmarks/README.md) for what's measured and how,
+and [benchmarks/samples/azure-cobalt100-2vcpu/README.md](benchmarks/samples/azure-cobalt100-2vcpu/README.md)
+for real-hardware results including the session-resumption (B2 lever 1) finding.
 
 ## Running on Arm64
 
