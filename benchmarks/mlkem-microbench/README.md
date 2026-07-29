@@ -125,6 +125,63 @@ appears incomplete as of this JDK 25.0.3 build) or going outside the JVM's
 built-in path entirely to `mlkem-native` via FFM/JNI — the stretch goal
 discussed elsewhere in this project, not attempted here.
 
+## A second, more specific flag — and a more satisfying answer than "free performance left on the table"
+
+`UseKyberIntrinsics` isn't the only relevant flag. `-XX:+PrintFlagsFinal`
+also shows `UseSHA3Intrinsics` and `UseSIMDForSHA3Intrinsic` (the latter
+tagged `{ARCH product}` — architecture-specific default selection, exactly
+the SIMD-vs-GPR SHA3 path OpenJDK's Neoverse-specific work (JDK-8359256)
+targets). Checking their *defaults* on each machine was itself informative:
+
+| Flag | Apple Silicon default | **Neoverse-N2 (real target) default** |
+|---|---|---|
+| `UseKyberIntrinsics` | `true` | `true` |
+| `UseSHA3Intrinsics` | `true` | **`false`** |
+| `UseSIMDForSHA3Intrinsic` | `true` | `true` |
+
+**The SHA3 intrinsic is disabled by default on our actual target hardware**
+— a real, concrete, HotSpot-ergonomics-level difference between the two
+chip families, not inferred, directly read from `PrintFlagsFinal`. Given
+Keccak/SHA3 is the dominant cost of ML-KEM (per the Opus/Fable source
+analysis at the top of this doc), this looked like the single most
+promising remaining lever: force it on and see what's been left on the
+table.
+
+**Forced on, averaged across 3 runs (same discipline as above — a
+single-run test showed a promising +13.5%, which is exactly why it was
+re-run and averaged rather than trusted):**
+
+| | SunJCE keygen p50 (avg of 3 runs) |
+|---|---|
+| SHA3 intrinsic OFF (default) | 65.91 µs |
+| SHA3 intrinsic FORCED ON | 63.46 µs |
+
+Only **~3.9%**, and one of the three individual runs went the *other*
+direction (default-off measured faster than forced-on) — noise-level, not
+a reliable win, same shape of result as the JVM-tuning-flags lever
+elsewhere in this project.
+
+**The more satisfying reading of this result: it's not "the JVM is leaving
+free performance on the table," it's independent confirmation that
+HotSpot's default is correct.** If forcing the SHA3 intrinsic on doesn't
+reliably help on Neoverse-N2, that's presumably *exactly why* OpenJDK's
+ergonomics disable it here by default — the default likely reflects their
+own internal testing, and this project independently verified it rather
+than just trusting it. That's a more rigorous result to report than
+"we found a hidden speedup" would have been, even though it's the less
+exciting outcome.
+
+**Not chased further, and why:** `UseSIMDForSHA3Intrinsic`'s SIMD-vs-GPR
+choice is only relevant once `UseSHA3Intrinsics` is forced on in the first
+place — since that parent flag's forced-on effect was already marginal and
+inconsistent, isolating the SIMD/GPR sub-variant on top of it was judged
+unlikely to change the conclusion, and wasn't run on real hardware to avoid
+further VM time for a diminishing-returns check. Likewise, JDK 26 (which
+might carry more complete Neoverse SHA3 work) has no `apt` package for
+Ubuntu 24.04 yet — consistent with this project's own JDK-adoption-lag
+research — and testing it would need a manual tarball install, not done
+here.
+
 **Caveats, stated plainly:**
 - Both regimes show wide tail-latency variance (p99/max values well above
   p50, some outliers into the milliseconds) — consistent with this VM's
@@ -146,7 +203,15 @@ small (~8.7% average, confirmed via direct intrinsic isolation, not just
 inferred) when warm, and can reverse entirely at realistic cold-start
 conditions. This is now precisely explained, not just observed: the
 `UseKyberIntrinsics` flag is on and firing, and simply delivers ~6x less
-uplift on this chip family than on Apple Silicon for the same code. That's
-a genuinely differentiated, hardware-specific, mechanism-level finding —
-not something you'd get from reading the JEP or the OpenJDK PR alone, and
-not something further JVM configuration can close.
+uplift on this chip family than on Apple Silicon for the same code —
+independently confirmed by checking a second, more specific flag
+(`UseSHA3Intrinsics`, disabled by default on this hardware) and finding
+that forcing it on doesn't yield a reliable win either, consistent with
+HotSpot's own default being empirically correct rather than overly
+conservative. That's a genuinely differentiated, hardware-specific,
+mechanism-level finding — not something you'd get from reading the JEP or
+the OpenJDK PR alone, and not something further JVM configuration closes.
+Two further angles were identified but not chased to real-hardware
+confirmation given diminishing expected returns: the SIMD-vs-GPR SHA3
+sub-variant, and a newer JDK (26) that might carry more complete
+Neoverse-specific work.
