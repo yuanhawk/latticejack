@@ -25,6 +25,13 @@ else
     "/usr/lib/jvm/java-21-amazon-corretto"
     "/usr/lib/jvm/temurin-21-jdk-amd64"
     "/usr/lib/jvm/temurin-21-jdk-arm64"
+    # Plain `apt install openjdk-21-jdk` (Ubuntu/Debian) - what's actually
+    # installed on the Azure Arm64 (Cobalt 100) runner, found by testing on
+    # real hardware rather than assumed: the earlier candidate list only
+    # covered Homebrew/Corretto/Temurin paths.
+    "/usr/lib/jvm/java-21-openjdk-arm64"
+    "/usr/lib/jvm/java-21-openjdk-amd64"
+    "/usr/lib/jvm/java-21-openjdk"
   )
   # Homebrew installs JDKs unlinked under Cellar; opt/openjdk@21 may not
   # exist as a symlink even when the keg does, so check Cellar directly too.
