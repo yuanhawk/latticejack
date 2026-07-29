@@ -149,9 +149,16 @@ repeatedly overstated real-hardware impact for this workload**.
 attributed the ~88ms to "crypto compute" dominating so completely that
 nothing else could matter. That's not literally supportable — even BC's
 slowest measured ML-KEM operations total ~190µs, three orders of magnitude
-below 88ms. What actually consumes the rest of that 88ms was not isolated
-by this project; see `benchmarks/mlkem-native-bench/README.md`'s "An
-honest correction" section for the full discussion.*)
+below 88ms. **Since resolved** with real hardware-level CPU profiling
+(Arm Performix, `collect_java_stacks=true`, profiling the exact benchmark
+command that produces the 88ms number): ~73% of all CPU time is JVM
+overhead — `libjvm.so` (62.96%, mostly C2 JIT compiler passes) plus the
+bytecode interpreter running not-yet-compiled code (10.04%) — while all of
+BouncyCastle's code combined (TLS engine, ASN.1, ML-KEM, classical crypto)
+is only 5.55%. JIT compilation and JVM warmup, not crypto compute, is what
+this document's "crypto compute dominates" language was actually — if
+imprecisely — pointing at. Full profiling methodology and data:
+[benchmarks/arm-performix-profile/README.md](../../arm-performix-profile/README.md).*)
 
 ## Reading all of this honestly
 
@@ -175,6 +182,8 @@ honest correction" section for the full discussion.*)
   closed a modest ~8.7% of the BC gap on real hardware, `benchmarks/mlkem
   -microbench/README.md`) and `mlkem-native`'s NEON-optimized C
   implementation, which found a much larger ~4.3-4.6x gap on the same
-  hardware — see `benchmarks/mlkem-native-bench/README.md`, including a
-  correction to this document's own earlier overstatement of how much of
-  the full ~88ms handshake that crypto cost actually explains.
+  hardware — see `benchmarks/mlkem-native-bench/README.md`. What actually
+  explains the full ~88ms handshake cost is now resolved with real
+  hardware profiling data, not just corrected inference — see
+  `benchmarks/arm-performix-profile/README.md`: ~73% JVM/JIT-compiler
+  overhead, ~5.55% BouncyCastle (crypto + protocol combined).

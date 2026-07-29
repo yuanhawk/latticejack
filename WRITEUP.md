@@ -269,12 +269,28 @@ Not yet a full end-to-end *handshake* integration - this calls the three
 KEM operations directly, not through a JCA `KEMSpi`/BCJSSE wiring into the
 actual mTLS reference service, which remains the real next step if pursued
 further. Full mechanism, the wall-clock-vs-cycle-counter methodology note
-from the ceiling measurement, the shared-library build details, and an
-honest correction to lever 2's "(~88ms)" framing above (this benchmark's
-own numbers rule out ML-KEM math alone explaining the full B1 handshake
-latency — flagged as an open question, not resolved here):
+from the ceiling measurement, and the shared-library build details:
 [benchmarks/mlkem-native-bench/README.md](benchmarks/mlkem-native-bench/README.md)
 and [benchmarks/mlkem-ffm-bench/README.md](benchmarks/mlkem-ffm-bench/README.md).
+
+**The "what actually consumes the ~88ms?" open question those two
+documents flagged is now resolved**, not just corrected-and-left-open, via
+[Arm Performix](https://developer.arm.com/servers-and-cloud-computing/arm-performix)
+(Arm's own hardware-level profiling toolkit for Neoverse platforms) - real
+CPU sampling data from the exact benchmark command that produces the 88ms
+number, 1.15M samples, on the real Cobalt 100 target, with Java stack
+symbolication enabled. **~73% of all CPU time is JVM overhead**:
+`libjvm.so` (62.96% - C2 JIT compiler passes `PhaseIdealLoop`,
+`PhaseChaitin`, `PhaseIterGVN` dominate, plus GC and class loading) and the
+bytecode `Interpreter` running not-yet-compiled code (10.04%). **All of
+BouncyCastle's code combined - TLS engine, ASN.1, ML-KEM, classical crypto
+- is 5.55%.** This directly explains, with evidence rather than inference,
+why lever 4 (native-image, which eliminates JIT entirely) found this
+project's largest B2 win: JIT compilation is the dominant real cost on this
+hardware, precisely the mechanism lever 4 attacks. Full profiling
+methodology, an honest caveat about a small amount of profiler-induced
+overhead in the raw numbers, and reproduction steps:
+[benchmarks/arm-performix-profile/README.md](benchmarks/arm-performix-profile/README.md).
 
 **Levers 4 and 5 are complementary, not competing** — they save different
 kinds of time, quantifiably: lever 4 saves ~2ms once per process launch;

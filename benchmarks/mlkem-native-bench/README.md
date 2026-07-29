@@ -102,13 +102,22 @@ orders of magnitude smaller than the ~88ms full-handshake p50 from B1. What
 "crypto compute dominates" was accurately pointing at is that *among the
 factors JVM tuning flags can influence* (GC, JIT tier), none come close to
 mattering - not that ML-KEM math alone explains ~88ms of wall-clock time.
-**What's actually consuming the other ~99.9% of that 88ms was not isolated
-by this project** (candidates: JVM/thread-pool dispatch, TLS protocol
-processing and record-layer overhead beyond the raw KEM primitive, GC,
-or the benchmark harness's own connection-setup cost) - flagged here as an
-open question, the same way this project flagged BCJSSE's PQC-resumption
-result as unresolved rather than overclaiming a root cause it hadn't
-earned.
+
+**Update: resolved, not just flagged.** Arm Performix hardware-level CPU
+profiling (real Cobalt 100 hardware, the exact `run-benchmark.sh after`
+workload that produces the 88ms number, 1.15M samples,
+`collect_java_stacks=true`) found the answer directly: **~73% of all CPU
+time is `libjvm.so` (62.96%, dominated by C2 JIT compiler passes -
+`PhaseIdealLoop`, `PhaseChaitin`, `PhaseIterGVN` - plus GC and class
+loading) and the bytecode `Interpreter` (10.04%, code not yet
+JIT-compiled). All of BouncyCastle's code combined - TLS engine, ASN.1,
+ML-KEM, classical crypto - is 5.55%.** JIT compilation and JVM
+warmup/runtime overhead, not crypto compute, dominates - directly
+explaining why lever 4 (GraalVM native-image, which eliminates JIT
+entirely) found the largest win of any B2 lever. Full profiling
+methodology, an honest caveat about a small amount of profiler-induced
+overhead in the raw numbers, and reproduction steps:
+[benchmarks/arm-performix-profile/README.md](../arm-performix-profile/README.md).
 
 ## Reproducing
 
