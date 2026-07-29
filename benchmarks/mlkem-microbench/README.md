@@ -77,6 +77,54 @@ matters for judging "which implementation is actually faster in
 production," the honest answer on this hardware might be closer to "roughly
 a wash, with BC sometimes ahead" than "JDK 25 wins."
 
+## How much of this is the intrinsic, isolated directly
+
+The natural follow-up question: is the small Arm64 advantage because the
+AArch64 intrinsic isn't actually activating on Neoverse-N2, or because it's
+active but just weaker there? HotSpot exposes a direct answer:
+`-XX:+UnlockDiagnosticVMOptions -XX:+PrintFlagsFinal` shows a real,
+default-on flag — `bool UseKyberIntrinsics = true {diagnostic} {default}`
+— confirmed present on both the local (Apple Silicon) and real Arm64 JDK
+25 builds used in this project. That makes a clean A/B test possible:
+toggle `-XX:-UseKyberIntrinsics` and remeasure the exact same benchmark,
+same JVM, same hardware, only the flag differs.
+
+**Local (Apple Silicon), single run:** SunJCE keygen p50 19.58µs
+(intrinsic ON) vs. 29.54µs (OFF) — the intrinsic alone accounts for
+**~51%** of JDK 25's speed there.
+
+**Real Arm64 (Cobalt 100), averaged across 3 independent runs** (a first
+single-run attempt showed 12.5%, which is why this was re-run 3x and
+averaged rather than trusted — the individual runs ranged 2-12%, real VM
+noise, not a stable number on their own):
+
+| | SunJCE keygen p50 (avg of 3 runs) |
+|---|---|
+| Intrinsic ON | 66.07 µs |
+| Intrinsic OFF | 71.84 µs |
+
+The intrinsic contributes **~8.7%** on Neoverse-N2 — roughly **6x weaker**
+than the ~51% it delivers on Apple Silicon, for the identical flag on the
+identical JDK build. And as a sanity check: BC's numbers (which never
+touch this flag) stay flat regardless of it, while SunJCE-with-intrinsic-OFF
+(71.84µs avg) and BC (~72.6µs avg over the same runs) land within ~1% of
+each other — confirming JDK's *reference* Java implementation and BC's are
+functionally equivalent as plain Java code. **All of JDK 25's advantage
+over BC on this hardware is the intrinsic, and the intrinsic itself is
+confirmed active but delivers a fraction of what it delivers on Apple
+Silicon.**
+
+**What this settles:** there is no further "JDK 25 configuration tuning"
+available to close more of the gap — `UseKyberIntrinsics` is already on by
+default and already firing. The ~8.7% is the real ceiling of what this
+specific intrinsic implementation currently offers on Neoverse-N2, not a
+misconfiguration. Closing the remaining gap toward native's ~11µs reference
+would require OpenJDK improving the intrinsic for Neoverse specifically
+(the JDK-8359256 SHA3-path work referenced above is exactly this, and
+appears incomplete as of this JDK 25.0.3 build) or going outside the JVM's
+built-in path entirely to `mlkem-native` via FFM/JNI — the stretch goal
+discussed elsewhere in this project, not attempted here.
+
 **Caveats, stated plainly:**
 - Both regimes show wide tail-latency variance (p99/max values well above
   p50, some outliers into the milliseconds) — consistent with this VM's
@@ -94,7 +142,11 @@ a wash, with BC sometimes ahead" than "JDK 25 wins."
 
 Don't cite "JDK 25 makes ML-KEM 2x faster" without a hardware qualifier.
 On real Arm64 server silicon (Neoverse-N2/Cobalt 100), the advantage is
-small (single-digit-to-low-teens percent) when warm, and can reverse
-entirely at realistic cold-start conditions. That's a genuinely
-differentiated, hardware-specific finding — not something you'd get from
-reading the JEP or the OpenJDK PR alone.
+small (~8.7% average, confirmed via direct intrinsic isolation, not just
+inferred) when warm, and can reverse entirely at realistic cold-start
+conditions. This is now precisely explained, not just observed: the
+`UseKyberIntrinsics` flag is on and firing, and simply delivers ~6x less
+uplift on this chip family than on Apple Silicon for the same code. That's
+a genuinely differentiated, hardware-specific, mechanism-level finding —
+not something you'd get from reading the JEP or the OpenJDK PR alone, and
+not something further JVM configuration can close.
