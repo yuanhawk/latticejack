@@ -14,7 +14,8 @@ migrated path for Arm64 (AWS Graviton / Ampere). Migration mechanics: see
 | **Before** (classical mTLS, JDK-only) | Working — `./run-before.sh` |
 | **After** (hybrid X25519MLKEM768 KEX) | **Working** — `./run-after.sh`, self-verifying (fails loudly if the hybrid group doesn't actually negotiate). See [MIGRATION.md](MIGRATION.md) and [docs/bouncycastle-pqc-notes.md](docs/bouncycastle-pqc-notes.md) §3a. |
 | ML-DSA certificate auth | **Deliberately deferred** to a stretch goal — experimental upstream in BouncyCastle, not enabled by default ([bcgit/bc-java#2102](https://github.com/bcgit/bc-java/issues/2102)). See MIGRATION.md "Scope." |
-| Arm64 benchmarking (B1/B2) | Not started |
+| Arm64 benchmarking (B1) | **Harness built and working** — `./run-benchmark.sh {before\|after}`, smoke-tested locally; not yet run on real Arm64 cloud hardware. See [benchmarks/README.md](benchmarks/README.md). |
+| Arm64 optimization (B2) | Not started — blocked on Arm64 cloud access |
 | Authoring guardrail / CBOM (Component C) | Not started |
 
 ## Quick start
@@ -38,6 +39,15 @@ before reporting success — see MIGRATION.md's "Gotchas" section and
 how it works (BCJSSE exposes no direct API for this). Set
 `LATTICEJACK_PORT` to change the port either script binds to.
 
+## Benchmarking (Component B1)
+
+```bash
+./run-benchmark.sh before   # classical baseline: latency, throughput, bytes-on-wire
+./run-benchmark.sh after    # hybrid PQC: same three metrics, for the before/after delta
+```
+
+See [benchmarks/README.md](benchmarks/README.md) for what's measured and how.
+
 ## Running on Arm64
 
 See [docs/arm64-instance-setup.md](docs/arm64-instance-setup.md) for
@@ -51,6 +61,7 @@ src/main/java/com/latticejack/pqc/   the reference TLS/mTLS service (Component A
 scripts/gen-classical-keys.sh        classical (ECDSA P-256) test keystore generation
 scripts/require-jdk21.sh             JDK 21 pinning, sourced by the run scripts
 run / run-before.sh / run-after.sh   the two configurations, per arm-hackathon-plan.md §3
+run-benchmark.sh, benchmarks/        B1 characterization harness (latency/throughput/bytes-on-wire)
 MIGRATION.md                         the step-by-step migration procedure + gotchas
 docs/bouncycastle-pqc-notes.md       BouncyCastle PQC/JSSE research + full debugging log
 docs/arm64-instance-setup.md         Arm64 provisioning guidance

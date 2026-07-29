@@ -14,3 +14,9 @@ keys/**/*.key
 keys/**/*.crt
 keys/**/*.csr
 !keys/.gitkeep
+
+# Benchmark result CSVs regenerate per-run (see run-benchmark.sh) and are
+# only meaningful tied to the hardware they were measured on - don't commit
+# a dev-machine run as if it were the official Arm64 numbers.
+benchmarks/results/*.csv
+!benchmarks/results/.gitkeep
