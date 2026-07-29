@@ -7,8 +7,9 @@ cd "$(dirname "$0")"
 case "${1:-}" in
   before) exec ./run-before.sh ;;
   after)  exec ./run-after.sh ;;
+  cbom)   exec python3 component-c/cbom/generate_cbom.py "${2:-after}" ;;
   *)
-    echo "usage: ./run {before|after}" >&2
+    echo "usage: ./run {before|after|cbom [before|after]}" >&2
     exit 1
     ;;
 esac

@@ -1,0 +1,147 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:fe06c8db-253f-4ccb-9061-fb514e2d6d88",
+  "version": 1,
+  "metadata": {
+    "component": {
+      "type": "application",
+      "bom-ref": "latticejack-echo-tls-after",
+      "name": "latticejack-echo-tls",
+      "version": "after",
+      "description": "Latticejack mTLS reference service, after (hybrid PQC) configuration."
+    }
+  },
+  "components": [
+    {
+      "type": "application",
+      "bom-ref": "latticejack-echo-tls-after",
+      "name": "latticejack-echo-tls",
+      "version": "after",
+      "description": "Latticejack mTLS reference service, after (hybrid PQC) configuration."
+    },
+    {
+      "type": "cryptographic-asset",
+      "name": "X25519MLKEM768",
+      "description": "Hybrid TLS 1.3 key exchange combiner: concatenates the X25519 ECDH shared secret and the ML-KEM-768 shared secret per draft-ietf-tls-hybrid-design, so the connection stays classically secure even if ML-KEM's novel security assumption is later broken, and post-quantum secure even if ECDH is broken by a future quantum computer.",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "combiner",
+          "executionEnvironment": "software-plain-ram",
+          "implementationPlatform": "generic",
+          "cryptoFunctions": [
+            "keyderive"
+          ],
+          "classicalSecurityLevel": 128,
+          "nistQuantumSecurityLevel": 3
+        }
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "ProviderBootstrap.java NAMED_GROUPS[0]; BouncyCastle BCJSSE 1.85 hybrid group implementation"
+          }
+        ]
+      },
+      "bom-ref": "after-X25519MLKEM768"
+    },
+    {
+      "type": "cryptographic-asset",
+      "name": "ML-KEM-768",
+      "description": "Module-Lattice-Based Key-Encapsulation Mechanism (FIPS 203), NIST security category 3. Half of the hybrid X25519MLKEM768 TLS 1.3 key exchange group in this project's \"after\" configuration.",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "kem",
+          "parameterSetIdentifier": "768",
+          "executionEnvironment": "software-plain-ram",
+          "implementationPlatform": "generic",
+          "cryptoFunctions": [
+            "keygen",
+            "encapsulate",
+            "decapsulate"
+          ],
+          "classicalSecurityLevel": 192,
+          "nistQuantumSecurityLevel": 3
+        }
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "ProviderBootstrap.java NAMED_GROUPS[0]=\"X25519MLKEM768\"; negotiation verified via HelloRetryRequest detection in run-after.sh (see docs/bouncycastle-pqc-notes.md \u00a73a)"
+          }
+        ]
+      },
+      "bom-ref": "after-ML-KEM-768"
+    },
+    {
+      "type": "cryptographic-asset",
+      "name": "X25519",
+      "description": "Elliptic-curve Diffie-Hellman key agreement (Curve25519), TLS 1.3 key exchange group.",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "key-agree",
+          "curve": "x25519",
+          "executionEnvironment": "software-plain-ram",
+          "implementationPlatform": "generic",
+          "cryptoFunctions": [
+            "keygen",
+            "keyderive"
+          ],
+          "classicalSecurityLevel": 128,
+          "nistQuantumSecurityLevel": 0
+        }
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "ProviderBootstrap.java NAMED_GROUPS; scripts/require-jdk21.sh-pinned JSSE default groups"
+          }
+        ]
+      },
+      "bom-ref": "after-X25519"
+    },
+    {
+      "type": "cryptographic-asset",
+      "name": "ECDSA-P256",
+      "description": "Elliptic Curve Digital Signature Algorithm over secp256r1 (NIST P-256), used for both the leaf and CA certificate signatures in this project's test PKI.",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "curve": "secp256r1",
+          "executionEnvironment": "software-plain-ram",
+          "implementationPlatform": "generic",
+          "cryptoFunctions": [
+            "keygen",
+            "sign",
+            "verify"
+          ],
+          "classicalSecurityLevel": 128,
+          "nistQuantumSecurityLevel": 0
+        }
+      },
+      "evidence": {
+        "occurrences": [
+          {
+            "location": "scripts/gen-classical-keys.sh: keytool -keyalg EC -groupname secp256r1 -sigalg SHA256withECDSA"
+          }
+        ]
+      },
+      "bom-ref": "after-ECDSA-P256"
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "latticejack-echo-tls-after",
+      "dependsOn": [
+        "after-X25519MLKEM768",
+        "after-ML-KEM-768",
+        "after-X25519",
+        "after-ECDSA-P256"
+      ]
+    }
+  ]
+}

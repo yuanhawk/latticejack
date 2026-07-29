@@ -425,14 +425,46 @@ levers, not one optimization problem with one answer.
   GitHub-hosted Actions billing block that affected the primary x86 leg.
   See `.github/workflows/ci.yml`.
 
+### Component C — authoring guardrail + CBOM (done)
+
+Built after B2 was already far past the plan's own "1-2 levers you can
+land solidly" target (eight, at that point) - the plan's fallback ladder
+explicitly protects B2 first, so this was deliberately sequenced after,
+not skipped.
+
+**`skills/pqc-authoring/`** — a Claude Code Skill reviewing new/changed
+Java TLS code for regressions back toward classical-only crypto. Proven,
+not just asserted: its worked example
+(`skills/pqc-authoring/examples/worked-example.md`) walks through a real
+regression this project hit once (`SSLContext.getDefault()` silently
+negotiating classical instead of the hybrid group, with zero runtime
+error - see `docs/bouncycastle-pqc-notes.md`), showing the skill's
+checklist actually catches it. Deliberately scoped narrow - flags TLS
+-handshake-context classical crypto only, not general application crypto
+elsewhere, and doesn't demand PQC certificate signatures since that's
+honestly out of this project's own migration scope (see below).
+
+**`component-c/cbom/`** — `./run cbom {before|after}` emits a CycloneDX
+1.6 CBOM, **validated against the real published JSON schema** (downloaded
+from `CycloneDX/specification`, not assumed) rather than just
+plausible-looking JSON. Honest by construction: the "after" CBOM still
+lists `ECDSA-P256` as a classical, unmigrated signature asset
+(`nistQuantumSecurityLevel: 0`) alongside the new `X25519MLKEM768` hybrid
+KEM, because certificate authentication genuinely hasn't migrated in this
+project (ML-DSA cert auth deferred, upstream not stable - see "Scope"
+below). A CBOM that dropped that asset the moment the KEX went PQC would
+misrepresent the actual state, exactly where an auditable record can't
+afford to. Every asset cites the exact file/line its fact comes from.
+
+Framed for the audience the plan's own rationale names for Track 2
+(migration/adoption value): regulated Java shops - finance, insurance -
+where a full rewrite is never realistic and a migration has to be
+incremental, auditable, and defensible to a compliance review. Full
+detail: [component-c/README.md](component-c/README.md).
+
 ### What's not done (stated plainly)
 
-**Component C (authoring guardrail skill + CBOM crosscheck) has not been
-started.** This project prioritized Component B2 (the Arm64 optimization
-work, the plan's own explicitly-protected centerpiece and the 40-point
-criterion) over Component C per the plan's own fallback ladder. If
-pursued, it's independent of the Arm64 hardware work and could be picked
-up without further infrastructure. Native Arm64 acceleration via
+Native Arm64 acceleration via
 `mlkem-native` (lever 5 above) had its *ceiling* measured directly on real
 hardware (~4.3-4.6x on the primitive, exceeding the ~2-5x expected from
 independent literature), the specific reason OpenJDK didn't take this
