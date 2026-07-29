@@ -65,6 +65,51 @@ proof the hybrid X25519MLKEM768 group was actually negotiated, not a silent
 fallback to the classical `secp256r1` group. Confirmed on both the local Mac
 build and this real-hardware build independently.
 
+## GraalVM native-image vs. regular JVM: what's actually happening, and what's Arm-specific about it
+
+**The mechanism this lever exploits is not Arm-specific.** A regular JVM
+process pays a fixed startup tax every time it launches: classpath jar
+scanning, class loading + bytecode verification, and tiered JIT warmup
+(interpreter → C1 → C2) before the code is running at its eventual steady
+-state speed. `native-image` eliminates all of that by ahead-of-time
+compiling the application's whole reachable-class closure (discovered via
+static analysis plus the reflection/JNI config in `native-image/config/`,
+captured by the tracing agent) into a single self-contained native
+executable at *build* time — it starts already compiled, with no separate
+warmup phase. That AOT-vs-JIT tradeoff is a general HotSpot/GraalVM property
+that exists identically on x86-64; it is not an Arm instruction, extension,
+or Arm-specific compiler pass. This is a genuinely different kind of finding
+than lever 3 (JDK 25's `UseKyberIntrinsics`/`UseSHA3Intrinsics`), which
+*is* Arm-specific by construction — hand-written AArch64 assembly intrinsics,
+directly measured against the same flags on Apple Silicon to show the
+effect's magnitude differs by chip.
+
+**No x86 baseline was run for this lever**, so it cannot be claimed that the
+~7.9x gap is an *Arm-amplified* effect the way lever 3's intrinsic gap
+explicitly was shown to be (Neoverse-N2 vs Apple Silicon, same flag). It's
+plausible the same technique shows a comparably large — or larger, or
+smaller — gap on x86-64; that comparison wasn't measured and isn't claimed
+here.
+
+**What *is* legitimately established about Arm here:** the binary builds and
+runs correctly on Arm64 specifically (both Apple Silicon locally and Linux
+aarch64/Neoverse-N2 on the actual Azure target hardware — two independent
+GraalVM native-image builds, two independent toolchains, two independent
+sets of build-time incompatibilities to work through), and the magnitude of
+the win is real and large *on the hardware this submission actually targets*
+(Azure Cobalt 100), which is what Track 2's "genuinely leveraging Arm
+-powered platforms" criterion asks for a deployment to demonstrate — not
+that the underlying JIT-vs-AOT mechanism is itself an Arm invention. One
+Arm-relevant nuance worth naming honestly, not overclaiming: this specific
+target VM has only 2 vCPUs, and many Arm cloud SKUs (Graviton, Ampere,
+Cobalt) skew toward smaller/cheaper core counts at a given price point than
+comparable x86 instances — a fixed per-process JVM startup tax is
+*relatively* more expensive on a smaller instance regardless of
+architecture, so this optimization plausibly matters *more* in typical
+Arm cloud deployment shapes even though the mechanism itself isn't Arm
+-specific. That's a deployment-shape argument, not an architecture one, and
+it's stated here as a plausible connection, not a measured result.
+
 ## Two GraalVM/BouncyCastle build-time incompatibilities
 
 Found and fixed while getting `native-image` to produce a working binary at

@@ -204,7 +204,29 @@ hybrid negotiation, not a silent classical fallback).
 the metric that matches a serverless / per-request-process / CLI-tool
 deployment shape, not necessarily a long-running server handling many
 connections (HotSpot's C2 JIT can out-optimize GraalVM's default,
-non-PGO AOT compilation once fully warmed; not re-measured here). Full
+non-PGO AOT compilation once fully warmed; not re-measured here).
+
+**Unlike lever 3, this is not an Arm-specific mechanism, and that's stated
+plainly rather than blurred.** The AOT-vs-JIT tradeoff native-image exploits
+(no classpath jar scanning, no bytecode verification pass, no tiered-JIT
+warmup at every process launch) is a general HotSpot/GraalVM property,
+identical on x86-64 — not an Arm instruction or Arm-specific compiler pass,
+the way lever 3's hand-written AArch64 intrinsics explicitly were shown to
+be (directly measured against the same flags on Apple Silicon to quantify
+how the effect's magnitude differs by chip). No x86 baseline was run here,
+so the ~7.9x gap cannot be claimed as Arm-*amplified* the way lever 3's
+was. What *is* established: the binary builds and runs correctly on Arm64
+specifically (two independent toolchains — Apple Silicon locally, Linux
+aarch64/Neoverse-N2 on the actual target hardware — each surfacing its own
+build-time incompatibilities to work through), and the win is real and
+large on the hardware this submission actually targets, which is what
+Track 2's "genuinely leveraging Arm-powered platforms" criterion asks a
+deployment to demonstrate. One plausible (not measured) connection worth
+naming honestly: this VM's 2 vCPUs are typical of how many Arm cloud SKUs
+are priced relative to x86 — a fixed per-process JVM startup tax is
+relatively more expensive on a smaller instance regardless of architecture,
+so this lever plausibly matters more in a typical Arm cloud deployment
+shape even though the underlying mechanism isn't Arm-specific. Full
 results: [benchmarks/graalvm-native-image/README.md](benchmarks/graalvm-native-image/README.md).
 
 Together, the four levers point at a coherent picture of what "efficiency-
