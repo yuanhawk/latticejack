@@ -1,0 +1,27 @@
+=== baseline (default flags) ===
+[baseline] latency ms: p50=87.943 p95=96.112 p99=100.125 mean=83.530 min=45.571 max=102.019
+[baseline] client CPU ms/handshake (mean): 5.243
+
+=== fixed heap (256m) ===
+[fixedheap] latency ms: p50=88.762 p95=96.135 p99=103.206 mean=85.807 min=45.713 max=113.653
+[fixedheap] client CPU ms/handshake (mean): 5.420
+
+=== ZGC ===
+[zgc] latency ms: p50=88.833 p95=95.095 p99=98.925 mean=86.681 min=45.503 max=108.481
+[zgc] client CPU ms/handshake (mean): 5.605
+
+=== ParallelGC ===
+[parallelgc] latency ms: p50=88.219 p95=94.129 p99=99.994 mean=86.916 min=45.510 max=102.494
+[parallelgc] client CPU ms/handshake (mean): 5.225
+
+=== TieredStopAtLevel=1 (C1 only) ===
+[c1only] latency ms: p50=87.948 p95=92.722 p99=95.700 mean=85.775 min=46.828 max=99.228
+[c1only] client CPU ms/handshake (mean): 5.848
+
+=== no tiered (C2 only, no profiling) ===
+[c2only] latency ms: p50=89.065 p95=94.653 p99=98.621 mean=86.468 min=46.164 max=98.758
+[c2only] client CPU ms/handshake (mean): 6.663
+
+=== AlwaysPreTouch ===
+[pretouch] latency ms: p50=88.724 p95=95.210 p99=99.702 mean=83.003 min=46.094 max=101.866
+[pretouch] client CPU ms/handshake (mean): 5.633

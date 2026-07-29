@@ -113,18 +113,62 @@ investigation) to see whether hybrid-group sessions are excluded from its
 resumption cache, or find the equivalent of BC's own resumption logging at
 a different log level/logger name than tried here.
 
+## B2 lever 2: JVM tuning flags
+
+Tested GC choice (G1/default, ZGC, ParallelGC), fixed heap sizing,
+tiered-compilation level (`-XX:TieredStopAtLevel=1` / C1-only,
+`-XX:-TieredCompilation` / C2-only), and `AlwaysPreTouch`, against the
+"after" (PQC) latency pass. Local smoke test (Apple Silicon) showed a
+promising, consistent **-15.5%** for C1-only compilation vs. baseline —
+same instinct as the JDK25 comparison above: a fast dev machine made a
+secondary effect look meaningful. **On real Arm64 (Cobalt 100) hardware,
+every variant landed within ~1% of baseline** (essentially noise;
+C1-only measured +0.01%, i.e. no different from default):
+
+| Variant | p50 (real Arm64) | vs. baseline |
+|---|---|---|
+| baseline | 87.943 ms | — |
+| Fixed heap | 88.762 ms | +0.9% |
+| ZGC | 88.833 ms | +1.0% |
+| ParallelGC | 88.219 ms | +0.3% |
+| `TieredStopAtLevel=1` (C1-only) | 87.948 ms | +0.01% |
+| `-TieredCompilation` (C2-only) | 89.065 ms | +1.3% |
+| `AlwaysPreTouch` | 88.724 ms | +0.9% |
+
+**Why the local signal didn't hold, and it's a coherent explanation, not a
+shrug:** on the fast dev machine, real handshake crypto cost is only
+~3-4ms, so JIT-compilation-strategy differences are a large fraction of
+that tiny total and show up clearly. On the real Arm64 target, crypto cost
+dominates so completely (~88ms) that JIT/GC tuning differences become
+rounding error by comparison — there simply isn't enough non-crypto time
+left in the budget for these flags to move. This is the same shape of
+result as the JDK 25 finding above: **local dev-machine signals have
+repeatedly overstated real-hardware impact for this workload**, because
+the target hardware's much larger crypto compute cost swamps every
+secondary effect tested so far (JVM flags, session resumption's classical
+case, and JDK 25's touted speedup).
+
 ## Reading all of this honestly
 
 - The B1 before/after delta (94.9% p50) is a real, repeatedly-confirmed
   finding on real target hardware - not affected by any of the four bugs
   above (those were all found while building the *separate* resumption
   pass).
-- Session resumption, tried as the plan's suggested first B2 tuning lever,
-  did **not** produce the assumed win here. That is itself the honest B2
-  characterization result for this lever: tried, measured, found wanting,
-  with the reasoning shown rather than hidden. Per arm-hackathon-plan.md
-  §9's own risk register: "if a lever shows no effect, that's still a
-  reportable finding... honest engineering rather than a null result."
-- This is the "before/naive" baseline; B2's actual optimization work (JVM
-  tuning, GC, or root-causing the PQC resumption gap above) hasn't landed
-  yet.
+- **Both B2 levers tried so far (session resumption, JVM tuning) produced
+  honest null results on real hardware**, contradicting what the plan
+  assumed and what a fast local dev machine suggested, respectively. That
+  is itself the B2 characterization result: two plausible levers tried,
+  rigorously measured on the actual target hardware (not just a laptop),
+  found wanting, with the reasoning shown rather than hidden. Per
+  arm-hackathon-plan.md §9's own risk register: "if a lever shows no
+  effect, that's still a reportable finding... honest engineering rather
+  than a null result."
+- The pattern across every lever tested points at the same underlying
+  conclusion: **the dominant, hard-to-avoid cost on this hardware is the
+  ML-KEM cryptographic computation itself** (per the source-grounded
+  Opus/Fable analysis, mostly Keccak/SHA3 hashing, not the NTT) - and
+  nothing tried so far touches that directly except the JDK 25 comparison,
+  which itself only closed a modest 5-11% of the gap on real hardware. See
+  `benchmarks/mlkem-microbench/README.md` for that finding and the
+  remaining, larger levers (Vector API NTT, allocation reduction) neither
+  yet attempted.
