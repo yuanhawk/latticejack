@@ -56,9 +56,42 @@ final class ProviderBootstrap {
     static final String[] NAMED_GROUPS = {"X25519MLKEM768", "secp256r1"};
 
     static void install() {
-        BouncyCastleProvider bc = new BouncyCastleProvider();
-        Security.insertProviderAt(bc, 1);
-        Security.insertProviderAt(new BouncyCastleJsseProvider(bc), 2);
+        // Under GraalVM native-image, -Djava.util.logging.config.file is read
+        // by LogManager's static initializer, which BC's own classes trigger
+        // during --initialize-at-build-time=org.bouncycastle (baked into the
+        // image before the runtime property can take effect) - so wire the
+        // same FINEST-on-org.bouncycastle config (scripts/bc-logging.properties)
+        // programmatically instead, via plain instance-method calls that work
+        // regardless of when LogManager itself was class-initialized.
+        if (Boolean.getBoolean("latticejack.tls.debug")) {
+            java.util.logging.Logger bcLogger = java.util.logging.Logger.getLogger("org.bouncycastle");
+            bcLogger.setLevel(java.util.logging.Level.FINEST);
+            java.util.logging.ConsoleHandler handler = new java.util.logging.ConsoleHandler();
+            handler.setLevel(java.util.logging.Level.FINEST);
+            handler.setFormatter(new java.util.logging.SimpleFormatter());
+            bcLogger.addHandler(handler);
+            bcLogger.setUseParentHandlers(false);
+        }
+        // Reuse an already-registered instance if present rather than always
+        // instantiating fresh: under GraalVM native-image, a build-time Feature
+        // (see graalvm-native-work/feature-src/BouncyCastleFeature.java, not
+        // committed here - it's build tooling, not app code) registers a specific
+        // Provider instance via Security.addProvider() during image generation,
+        // baking it into the image heap as build-time-verified. A fresh
+        // `new BouncyCastleProvider()` here would be a different object with no
+        // cached verification result, so javax.crypto.JceSecurity.getVerificationResult()
+        // throws under SVM even though the same code runs fine on HotSpot. No-op on
+        // plain HotSpot beyond avoiding a redundant registration.
+        BouncyCastleProvider bc = (BouncyCastleProvider) Security.getProvider("BC");
+        if (bc == null) {
+            bc = new BouncyCastleProvider();
+            Security.insertProviderAt(bc, 1);
+        }
+        BouncyCastleJsseProvider bcJsse = (BouncyCastleJsseProvider) Security.getProvider("BCJSSE");
+        if (bcJsse == null) {
+            bcJsse = new BouncyCastleJsseProvider(bc);
+            Security.insertProviderAt(bcJsse, 2);
+        }
         System.out.println("[provider-bootstrap] installed BouncyCastle " + bc.getVersionStr()
                 + " + BCJSSE, namedGroups=" + String.join(",", NAMED_GROUPS));
     }
