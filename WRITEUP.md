@@ -99,14 +99,14 @@ measurement pass (full story in
 
 The plan's 40-point criterion rewards genuinely leveraging Arm-powered
 platforms with efficiency-minded design, not just deploying on Arm64. This
-project tried five concrete optimization levers, measured every one on
+project tried six concrete optimization levers, measured every one on
 real hardware (not a laptop), and reports what actually happened —
 including two honest null results, one precisely root-caused, non-obvious
-finding, and two confirmed positive wins (one end-to-end, one measuring the
-ceiling for a not-yet-integrated one), all cross-validated with
-independent-model review (Opus and Fable, given the same question,
-converged independently) or 3-run real-hardware averaging before being
-trusted.
+finding, and three confirmed positive results (one end-to-end, one
+measuring the ceiling for a not-yet-integrated one, and one modest
+exploratory pure-Java result), all cross-validated with independent-model
+review (Opus and Fable, given the same question, converged independently)
+or 3-run real-hardware averaging before being trusted.
 
 **Lever 1 — session resumption.** The plan's own risk register called this
 a "near-guaranteed win." It measurably was not: **1.8% (classical) / 0.3%
@@ -271,12 +271,47 @@ handshakes, continuing to grow afterward while lever 4's contribution stays
 flat. Which lever matters more is a question about process lifetime, not
 which technique is objectively better.
 
-Together, the five levers point at a coherent picture of what "efficiency-
+**Lever 6 (exploratory) — does pure Java have any real headroom left, or
+is native the only way to close the gap to lever 5?** Java's Vector API
+(`jdk.incubator.vector` - pure Java SIMD, no JNI, no FFM, no native-image,
+works on any standard JVM) tested against a representative Cooley-Tukey
+NTT kernel (not FIPS 203's exact incomplete NTT - a standard, complete,
+textbook transform over the same size/shape of workload; see
+`benchmarks/vector-api-ntt/README.md` for exactly what was and wasn't
+replicated). Correctness verified before any timing was trusted: the
+vector implementation's output checked bit-identical to the scalar
+implementation's, not just plausible-looking, across 200 random trials.
+
+Local (Apple Silicon) result: vector was *slower* than scalar, 0.949x.
+**Real Cobalt 100 hardware, 3-run averaged, showed the opposite direction:
+vector ~6.7% faster than scalar** (2848ns → 2669ns) - consistent across
+all 3 runs. A third distinct local-vs-real divergence pattern this project
+has now hit (lever 2: promising local signal, nothing real; lever 4: real
+gap larger than local; lever 6: local regression, real modest gain) -
+reinforcing the same underlying lesson each time: don't trust a local
+signal in *either* direction without checking real target hardware.
+
+**What this answers:** pure Java is not a dead end - there is real,
+measured, correctness-verified headroom (~6.7%) without leaving the JVM at
+all, using a conservative, disclosed-as-conservative implementation (2-lane
+`LongVector`, not a tuned 16-bit-lane design). It's a small fraction of
+lever 5's ~4.3-4.6x, so it doesn't change this project's lever ranking -
+but it demonstrates the ceiling-vs-floor distinction concretely: JDK 25's
+own intrinsics (lever 3, ~8.7%) and this exploratory pure-Java SIMD attempt
+(lever 6, ~6.7%) land in the same modest range, while a fully-dedicated
+native implementation (lever 5) is 40-60x further out - the gap between
+"shallow JVM-hosted acceleration" and "dedicated native code" is real and
+large, not something a bit more Java-side effort closes.
+
+Together, the six levers point at a coherent picture of what "efficiency-
 minded design" on Arm64 actually requires for this workload: attacking
 handshake crypto cost directly (lever 5, `mlkem-native` - ceiling measured,
-integration not yet attempted) for a warm, long-running server; and using
-ahead-of-time compilation (lever 4) for anything that pays JVM startup cost
-per unit of work.
+integration not yet attempted) for the largest possible win; incremental,
+still-worthwhile pure-Java gains are available via the Vector API (lever 6)
+or deeper JDK intrinsic investment (lever 3) without leaving the JVM at
+all; and ahead-of-time compilation (lever 4) for anything that pays JVM
+startup cost per unit of work - three different costs, three different
+levers, not one optimization problem with one answer.
 
 ### Infrastructure — real, not simulated
 

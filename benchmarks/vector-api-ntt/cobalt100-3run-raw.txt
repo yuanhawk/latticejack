@@ -1,0 +1,48 @@
+[vector-api-ntt-bench] host: real Azure Cobalt 100 (Neoverse-N2), Linux aarch64
+Linux latticejack-arm64-runner 6.17.0-1020-azure #20~24.04.1-Ubuntu SMP Fri Jun 19 20:26:28 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+openjdk version "21.0.11" 2026-04-21
+OpenJDK Runtime Environment (build 21.0.11+10-1-24.04.2-Ubuntu)
+OpenJDK 64-Bit Server VM (build 21.0.11+10-1-24.04.2-Ubuntu, mixed mode, sharing)
+
+===== RUN 1 =====
+WARNING: Using incubator modules: jdk.incubator.vector
+[vector-api-ntt] Q=12289 N=256 LongVector.SPECIES_PREFERRED=Species[long, 2, S_128_BIT] (lanes=2)
+[vector-api-ntt] generator g=11
+[vector-api-ntt] Barrett reduction: OK (200000 random checks)
+[vector-api-ntt] scalar forward+inverse round-trip: OK (100 random trials)
+[vector-api-ntt] vector output matches scalar bit-for-bit: OK (200 random trials)
+[vector-api-ntt] vector forward+inverse round-trip: OK (100 random trials)
+[vector-api-ntt] all correctness checks passed
+
+scalar NTT (n=256): p50=2848 ns p10=2832 ns p90=2856 ns
+vector NTT (n=256): p50=2664 ns p10=2656 ns p90=2672 ns
+vector vs scalar (p50): 1.069x
+
+===== RUN 2 =====
+WARNING: Using incubator modules: jdk.incubator.vector
+[vector-api-ntt] Q=12289 N=256 LongVector.SPECIES_PREFERRED=Species[long, 2, S_128_BIT] (lanes=2)
+[vector-api-ntt] generator g=11
+[vector-api-ntt] Barrett reduction: OK (200000 random checks)
+[vector-api-ntt] scalar forward+inverse round-trip: OK (100 random trials)
+[vector-api-ntt] vector output matches scalar bit-for-bit: OK (200 random trials)
+[vector-api-ntt] vector forward+inverse round-trip: OK (100 random trials)
+[vector-api-ntt] all correctness checks passed
+
+scalar NTT (n=256): p50=2848 ns p10=2833 ns p90=2864 ns
+vector NTT (n=256): p50=2672 ns p10=2664 ns p90=2681 ns
+vector vs scalar (p50): 1.066x
+
+===== RUN 3 =====
+WARNING: Using incubator modules: jdk.incubator.vector
+[vector-api-ntt] Q=12289 N=256 LongVector.SPECIES_PREFERRED=Species[long, 2, S_128_BIT] (lanes=2)
+[vector-api-ntt] generator g=11
+[vector-api-ntt] Barrett reduction: OK (200000 random checks)
+[vector-api-ntt] scalar forward+inverse round-trip: OK (100 random trials)
+[vector-api-ntt] vector output matches scalar bit-for-bit: OK (200 random trials)
+[vector-api-ntt] vector forward+inverse round-trip: OK (100 random trials)
+[vector-api-ntt] all correctness checks passed
+
+scalar NTT (n=256): p50=2848 ns p10=2832 ns p90=2856 ns
+vector NTT (n=256): p50=2672 ns p10=2656 ns p90=2680 ns
+vector vs scalar (p50): 1.066x
+
