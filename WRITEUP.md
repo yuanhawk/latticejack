@@ -99,7 +99,7 @@ measurement pass (full story in
 
 The plan's 40-point criterion rewards genuinely leveraging Arm-powered
 platforms with efficiency-minded design, not just deploying on Arm64. This
-project tried seven concrete optimization levers, measured every one on
+project tried eight concrete optimization levers, measured every one on
 real hardware (not a laptop), and reports what actually happened —
 including two honest null results, one precisely root-caused, non-obvious
 finding, and three confirmed positive results (one end-to-end, one
@@ -369,14 +369,40 @@ official benchmark binary links a non-secure RNG precisely because nothing
 stops it. Full detail:
 [benchmarks/mlkem-rust-ffm-bench/README.md](benchmarks/mlkem-rust-ffm-bench/README.md).
 
-Together, the seven levers point at a coherent picture of what
+**Lever 8 (exploratory) — a positive control for lever 7's conclusion.**
+If lever 7's gap was really about assembly investment, not language, a
+Rust wrapper *around* hand-tuned assembly should close it.
+[`rustpq/pqcrypto`](https://github.com/rustpq/pqcrypto) is exactly that -
+a Rust FFI wrapper around PQClean's C, whose `ml-kem-768/aarch64` variant
+has real hand-written NEON assembly (confirmed via source and via this
+build's own compiled `.a`/`.o` artifacts). Same methodology, same real
+hardware, 3-run averaged, correctness-verified:
+
+| | pqcrypto (FFM) | mlkem-native (FFM, C) | RustCrypto (FFM, lever 7) |
+|---|---|---|---|
+| **total** | **48.90 µs** | **47.32 µs** | **142.11 µs** |
+
+**Within 3.3% of mlkem-native's own performance - and ~2.9x faster than
+lever 7's pure-Rust crate, using the same host language.** This confirms
+lever 7's conclusion with a positive result, not just a negative one: the
+axis was never "Rust vs. C," it's "does this specific implementation have
+chip-specific hand-tuning." But the safety picture is correspondingly
+different from lever 7 too, and worth stating precisely rather than
+conflating: pqcrypto's Rust layer wraps the API surface only - the hot
+NTT/multiplication loops still run in C and assembly, with the same safety
+profile as mlkem-native's hot path (none). Lever 7 (safe, ~3x slower) and
+lever 8 (fast, no safer than C in the hot path) each demonstrate one side
+of a real tradeoff; no lever tested here gets both at once. Full detail:
+[benchmarks/pqcrypto-ffm-bench/README.md](benchmarks/pqcrypto-ffm-bench/README.md).
+
+Together, the eight levers point at a coherent picture of what
 "efficiency-minded design" on Arm64 actually requires for this workload:
 attacking handshake crypto cost directly via hand-tuned, chip-specific
-native code (lever 5, `mlkem-native` - both ceiling and a real FFM
-integration measured, ~85% of the ceiling realized) for the largest
-possible win, a win driven by architecture-specific tuning investment, not
-by leaving Java per se (lever 7 shows a *safe*, *portable*, un-tuned native
-implementation only closes a fraction of that gap); incremental,
+native code (levers 5 and 8, both landing within a few percent of each
+other via C and Rust-wrapping-C respectively) for the largest possible
+win, a win driven by architecture-specific tuning investment, not by which
+language calls it or by leaving Java per se (lever 7's portable, un-tuned
+Rust only closes a fraction of that gap on its own); incremental,
 still-worthwhile pure-Java gains are available via the Vector API (lever 6)
 or deeper JDK intrinsic investment (lever 3) without leaving the JVM at
 all; and ahead-of-time compilation (lever 4) for anything that pays JVM

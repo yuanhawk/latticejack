@@ -1,0 +1,32 @@
+target/release/build/pqcrypto-mlkem-108749487508892f/out/libml-kem-512_aarch64.a
+target/release/build/pqcrypto-mlkem-108749487508892f/out/bace37630853a103-neon_symmetric-shake.o
+target/release/build/pqcrypto-mlkem-108749487508892f/out/6b900c969d550d93-neon_symmetric-shake.o
+target/release/build/pqcrypto-mlkem-108749487508892f/out/libml-kem-1024_aarch64.a
+target/release/build/pqcrypto-mlkem-108749487508892f/out/81a713c55c593594-neon_polyvec.o
+target/release/build/pqcrypto-mlkem-108749487508892f/out/bace37630853a103-neon_poly.o
+target/release/build/pqcrypto-mlkem-108749487508892f/out/6b900c969d550d93-neon_poly.o
+target/release/build/pqcrypto-mlkem-108749487508892f/out/libml-kem-768_aarch64.a
+target/release/build/pqcrypto-mlkem-108749487508892f/out/bace37630853a103-neon_polyvec.o
+target/release/build/pqcrypto-mlkem-108749487508892f/out/81a713c55c593594-neon_poly.o
+--- raw bench 3 runs ---
+===== RUN 1 =====
+[pqcrypto-bench] correctness: OK (encaps/decaps shared secrets agree, 50 trials)
+
+keygen (raw Rust/pqcrypto) us: p50=14.58 p10=14.54 p90=14.82
+encaps (raw Rust/pqcrypto) us: p50=15.73 p10=15.71 p90=15.75
+decaps (raw Rust/pqcrypto) us: p50=17.48 p10=17.46 p90=17.50
+
+===== RUN 2 =====
+[pqcrypto-bench] correctness: OK (encaps/decaps shared secrets agree, 50 trials)
+
+keygen (raw Rust/pqcrypto) us: p50=14.57 p10=14.53 p90=14.82
+encaps (raw Rust/pqcrypto) us: p50=15.74 p10=15.72 p90=15.77
+decaps (raw Rust/pqcrypto) us: p50=17.50 p10=17.48 p90=17.52
+
+===== RUN 3 =====
+[pqcrypto-bench] correctness: OK (encaps/decaps shared secrets agree, 50 trials)
+
+keygen (raw Rust/pqcrypto) us: p50=14.57 p10=14.53 p90=14.81
+encaps (raw Rust/pqcrypto) us: p50=15.70 p10=15.68 p90=15.73
+decaps (raw Rust/pqcrypto) us: p50=17.46 p10=17.43 p90=17.47
+

@@ -1,0 +1,39 @@
+Note: /home/azureuser/PqcryptoFfmBench.java uses preview features of Java SE 21.
+Note: Recompile with -Xlint:preview for details.
+COMPILE_EXIT=0
+===== FFM RUN 1 =====
+WARNING: A restricted method in java.lang.foreign.SymbolLookup has been called
+WARNING: java.lang.foreign.SymbolLookup::libraryLookup has been called by the unnamed module
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for this module
+
+[pqcrypto-ffm-bench] loaded /home/azureuser/pqcrypto-ffm/target/release/libpqcrypto_ffm.so, symbols bound
+[pqcrypto-ffm-bench] correctness: OK (encaps/decaps shared secrets agree, 50 trials)
+
+keygen (via FFM) us: p50=14.98 p10=14.93 p90=15.31
+encaps (via FFM) us: p50=16.11 p10=16.08 p90=16.18
+decaps (via FFM) us: p50=17.78 p10=17.76 p90=17.80
+
+===== FFM RUN 2 =====
+WARNING: A restricted method in java.lang.foreign.SymbolLookup has been called
+WARNING: java.lang.foreign.SymbolLookup::libraryLookup has been called by the unnamed module
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for this module
+
+[pqcrypto-ffm-bench] loaded /home/azureuser/pqcrypto-ffm/target/release/libpqcrypto_ffm.so, symbols bound
+[pqcrypto-ffm-bench] correctness: OK (encaps/decaps shared secrets agree, 50 trials)
+
+keygen (via FFM) us: p50=14.99 p10=14.94 p90=15.35
+encaps (via FFM) us: p50=16.12 p10=16.10 p90=16.20
+decaps (via FFM) us: p50=17.78 p10=17.76 p90=17.80
+
+===== FFM RUN 3 =====
+WARNING: A restricted method in java.lang.foreign.SymbolLookup has been called
+WARNING: java.lang.foreign.SymbolLookup::libraryLookup has been called by the unnamed module
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for this module
+
+[pqcrypto-ffm-bench] loaded /home/azureuser/pqcrypto-ffm/target/release/libpqcrypto_ffm.so, symbols bound
+[pqcrypto-ffm-bench] correctness: OK (encaps/decaps shared secrets agree, 50 trials)
+
+keygen (via FFM) us: p50=15.00 p10=14.95 p90=15.37
+encaps (via FFM) us: p50=16.13 p10=16.10 p90=16.19
+decaps (via FFM) us: p50=17.80 p10=17.79 p90=17.83
+
