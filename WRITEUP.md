@@ -99,7 +99,7 @@ measurement pass (full story in
 
 The plan's 40-point criterion rewards genuinely leveraging Arm-powered
 platforms with efficiency-minded design, not just deploying on Arm64. This
-project tried six concrete optimization levers, measured every one on
+project tried seven concrete optimization levers, measured every one on
 real hardware (not a laptop), and reports what actually happened —
 including two honest null results, one precisely root-caused, non-obvious
 finding, and three confirmed positive results (one end-to-end, one
@@ -320,10 +320,47 @@ native implementation (lever 5) is 40-60x further out - the gap between
 "shallow JVM-hosted acceleration" and "dedicated native code" is real and
 large, not something a bit more Java-side effort closes.
 
-Together, the six levers point at a coherent picture of what "efficiency-
-minded design" on Arm64 actually requires for this workload: attacking
-handshake crypto cost directly (lever 5, `mlkem-native` - ceiling measured,
-integration not yet attempted) for the largest possible win; incremental,
+**Lever 7 (exploratory) — is mlkem-native's ~4x win a C-vs-Rust language
+story, or something else?** Prompted directly by a question about whether
+Rust's memory safety (ownership/borrow-checking, vs. C's none) comes with
+a measured performance cost. Benchmarked RustCrypto's `ml-kem` crate the
+same two-stage way as lever 5 - raw standalone, then a real Java FFM
+integration - on the same real Cobalt 100 hardware, 3-run averaged,
+correctness-verified (shared-secret agreement):
+
+| Operation | RustCrypto (FFM) | mlkem-native, C (FFM) | vs BC | vs JDK 25 | vs mlkem-native |
+|---|---|---|---|---|---|
+| **total** | **142.11 µs** | **47.32 µs** | **1.34x faster** | **1.24x faster** | **3.0x slower** |
+
+**No - memory safety isn't the cost.** FFM-integrated RustCrypto beats pure
+Java (~1.3x over BC), so a memory-safe systems language is a real, if
+modest, net win over managed Java on its own. But it's ~3x *slower* than
+mlkem-native's C - a gap explained by what each library actually is, not
+by which language it's written in: mlkem-native is hand-written,
+formally-proven AArch64 NEON assembly; RustCrypto's crate is portable,
+generic, safe Rust with no chip-specific tuning at all. Rust can write the
+same NEON intrinsics C can (`std::arch::aarch64` exists precisely for
+this) - nobody has invested that engineering effort into this particular
+crate. The axis that actually matters is "hand-tuned for this chip" vs.
+"portable," not "which language." One concrete, load-bearing illustration
+of Rust's *type-level* safety surfaced while building this: the
+implementation originally tried `SmallRng` (explicitly non-cryptographic,
+chosen to match methodology with mlkem-native's own non-secure test RNG)
+and **it failed to compile** - `ml-kem`'s API requires
+`rand_core::CryptoRngCore`, which `SmallRng` deliberately doesn't
+implement. C has no equivalent compile-time guard; mlkem-native's own
+official benchmark binary links a non-secure RNG precisely because nothing
+stops it. Full detail:
+[benchmarks/mlkem-rust-ffm-bench/README.md](benchmarks/mlkem-rust-ffm-bench/README.md).
+
+Together, the seven levers point at a coherent picture of what
+"efficiency-minded design" on Arm64 actually requires for this workload:
+attacking handshake crypto cost directly via hand-tuned, chip-specific
+native code (lever 5, `mlkem-native` - both ceiling and a real FFM
+integration measured, ~85% of the ceiling realized) for the largest
+possible win, a win driven by architecture-specific tuning investment, not
+by leaving Java per se (lever 7 shows a *safe*, *portable*, un-tuned native
+implementation only closes a fraction of that gap); incremental,
 still-worthwhile pure-Java gains are available via the Vector API (lever 6)
 or deeper JDK intrinsic investment (lever 3) without leaving the JVM at
 all; and ahead-of-time compilation (lever 4) for anything that pays JVM

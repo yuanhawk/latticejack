@@ -1,0 +1,21 @@
+===== RAW RUST RUN 1 =====
+[mlkem-rust-bench] correctness: OK (encaps/decaps shared secrets agree, 50 trials)
+
+keygen (raw Rust) us: p50=39.24 p10=38.61 p90=40.08
+encaps (raw Rust) us: p50=37.10 p10=37.02 p90=37.47
+decaps (raw Rust) us: p50=47.89 p10=47.82 p90=48.01
+
+===== RAW RUST RUN 2 =====
+[mlkem-rust-bench] correctness: OK (encaps/decaps shared secrets agree, 50 trials)
+
+keygen (raw Rust) us: p50=39.22 p10=38.58 p90=40.06
+encaps (raw Rust) us: p50=36.99 p10=36.91 p90=37.35
+decaps (raw Rust) us: p50=47.97 p10=47.84 p90=48.10
+
+===== RAW RUST RUN 3 =====
+[mlkem-rust-bench] correctness: OK (encaps/decaps shared secrets agree, 50 trials)
+
+keygen (raw Rust) us: p50=39.14 p10=38.51 p90=39.98
+encaps (raw Rust) us: p50=36.95 p10=36.86 p90=37.30
+decaps (raw Rust) us: p50=47.77 p10=47.68 p90=47.90
+

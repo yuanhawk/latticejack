@@ -1,0 +1,39 @@
+Note: /home/azureuser/MlkemRustFfmBench.java uses preview features of Java SE 21.
+Note: Recompile with -Xlint:preview for details.
+COMPILE_EXIT=0
+===== FFM RUST RUN 1 =====
+WARNING: A restricted method in java.lang.foreign.SymbolLookup has been called
+WARNING: java.lang.foreign.SymbolLookup::libraryLookup has been called by the unnamed module
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for this module
+
+[mlkem-rust-ffm-bench] loaded /home/azureuser/mlkem-rust-ffm/target/release/libmlkem_rust_ffm.so, symbols bound
+[mlkem-rust-ffm-bench] correctness: OK (encaps/decaps shared secrets agree, 50 trials)
+
+keygen (via FFM) us: p50=46.66 p10=46.47 p90=47.20
+encaps (via FFM) us: p50=44.15 p10=44.03 p90=44.47
+decaps (via FFM) us: p50=51.52 p10=51.42 p90=51.80
+
+===== FFM RUST RUN 2 =====
+WARNING: A restricted method in java.lang.foreign.SymbolLookup has been called
+WARNING: java.lang.foreign.SymbolLookup::libraryLookup has been called by the unnamed module
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for this module
+
+[mlkem-rust-ffm-bench] loaded /home/azureuser/mlkem-rust-ffm/target/release/libmlkem_rust_ffm.so, symbols bound
+[mlkem-rust-ffm-bench] correctness: OK (encaps/decaps shared secrets agree, 50 trials)
+
+keygen (via FFM) us: p50=46.61 p10=46.45 p90=47.15
+encaps (via FFM) us: p50=44.01 p10=43.90 p90=44.35
+decaps (via FFM) us: p50=51.37 p10=51.27 p90=51.62
+
+===== FFM RUST RUN 3 =====
+WARNING: A restricted method in [mlkem-rust-ffm-bench] loaded /home/azureuser/mlkem-rust-ffm/target/release/libmlkem_rust_ffm.so, symbols bound
+[mlkem-rust-ffm-bench] correctness: OK (encaps/decaps shared secrets agree, 50 trials)
+java.lang.foreign.SymbolLookup has been called
+WARNING: java.lang.foreign.SymbolLookup::libraryLookup has been called by the unnamed module
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for this module
+
+
+keygen (via FFM) us: p50=46.54 p10=46.39 p90=46.99
+encaps (via FFM) us: p50=44.03 p10=43.92 p90=44.30
+decaps (via FFM) us: p50=51.44 p10=51.34 p90=51.70
+
