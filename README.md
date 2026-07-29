@@ -1,6 +1,8 @@
 # Latticejack — PQC Migration for Java on Arm64
 
 Arm AI Optimization Challenge, Track 2 (Migration/Adoption). Full plan: [arm-hackathon-plan.md](arm-hackathon-plan.md).
+Formal submission write-up (Project Overview / Functionality / Setup
+Instructions): **[WRITEUP.md](WRITEUP.md)**.
 
 Migrates a Java TLS/mTLS reference service from classical crypto
 (ECDSA/X25519) to hybrid post-quantum crypto (ML-KEM), then tunes the
