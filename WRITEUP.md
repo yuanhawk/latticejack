@@ -237,39 +237,56 @@ so this lever plausibly matters more in a typical Arm cloud deployment
 shape even though the underlying mechanism isn't Arm-specific. Full
 results: [benchmarks/graalvm-native-image/README.md](benchmarks/graalvm-native-image/README.md).
 
-**Lever 5 — mlkem-native, the primitive-level lever levers 1-3 pointed at.**
+**Lever 5 — mlkem-native, the primitive-level lever levers 1-3 pointed at,
+measured both as a ceiling and as a real integration.**
 [`pq-code-package/mlkem-native`](https://github.com/pq-code-package/mlkem-native)
 is a formally-verified C implementation with hand-optimized AArch64 NEON
-assembly, run standalone (not integrated into the Java service - this
-measures the *ceiling*, not an end-to-end result) on the same real Cobalt
-100 hardware, 3-run averaged, confirmed compiling and running the actual
-NEON backend (not a portable C fallback):
+assembly. First run standalone (the *ceiling* - confirmed compiling and
+running the actual NEON backend, not a portable C fallback), then actually
+called from Java via the Foreign Function & Memory API (`java.lang.foreign`
+- no JNI, no native-image required) to measure what survives the real FFI
+crossing cost. Both 3-run averaged on the same real Cobalt 100 hardware:
 
-| Operation | mlkem-native | BC (warm) | JDK 25 (warm) | vs BC | vs JDK 25 |
-|---|---|---|---|---|---|
-| keygen | 11.85 µs | 72.66 µs | 65.35 µs | 6.1x | 5.5x |
-| encaps | 13.05 µs | 58.83 µs | 56.02 µs | 4.5x | 4.3x |
-| decaps | 16.22 µs | 58.33 µs | 54.61 µs | 3.6x | 3.4x |
+| Operation | Raw C ceiling | **Via FFM (real)** | BC (warm) | JDK 25 (warm) | vs BC | vs JDK 25 |
+|---|---|---|---|---|---|---|
+| keygen | 11.85 µs | 15.82 µs | 72.66 µs | 65.35 µs | 4.6x | 4.1x |
+| encaps | 13.05 µs | 15.11 µs | 58.83 µs | 56.02 µs | 3.9x | 3.7x |
+| decaps | 16.22 µs | 16.39 µs | 58.33 µs | 54.61 µs | 3.6x | 3.3x |
+| **total** | **41.12 µs** | **47.32 µs** | **189.82 µs** | **175.98 µs** | **4.0x** | **3.7x** |
 
-**~4.3-4.6x faster overall** — the largest per-operation gap any lever in
-this project found, dwarfing JDK 25's ~8.7% intrinsic gain over BC on the
-same chip. Full mechanism, the wall-clock-vs-cycle-counter methodology note,
-and an honest correction to lever 2's "(~88ms)" framing above (this
-benchmark's own numbers rule out ML-KEM math alone explaining the full B1
-handshake latency — flagged as an open question, not resolved here):
-[benchmarks/mlkem-native-bench/README.md](benchmarks/mlkem-native-bench/README.md).
+**~85% of the raw ceiling survives real integration** (total FFI overhead
++15.1%, but it shrinks the longer the native call runs - keygen absorbs
++33.5% relative overhead, decaps only +1.0%), landing at **~3.7-4.0x
+faster end-to-end** rather than the ceiling's ~4.3-4.6x — still the
+largest *realized* per-operation gap this project found, dwarfing lever
+3's ~8.7% JDK 25 intrinsic gain and lever 6's ~6.7% exploratory Vector API
+result by roughly two orders of magnitude. Correctness verified via
+shared-secret agreement across the real FFM boundary (encaps/decaps
+results match after a full keypair→encaps→decaps round trip, 50 trials),
+not a reimplementation-correctness check like lever 6 needed, since this
+calls an already-correct library rather than re-deriving the crypto.
+Not yet a full end-to-end *handshake* integration - this calls the three
+KEM operations directly, not through a JCA `KEMSpi`/BCJSSE wiring into the
+actual mTLS reference service, which remains the real next step if pursued
+further. Full mechanism, the wall-clock-vs-cycle-counter methodology note
+from the ceiling measurement, the shared-library build details, and an
+honest correction to lever 2's "(~88ms)" framing above (this benchmark's
+own numbers rule out ML-KEM math alone explaining the full B1 handshake
+latency — flagged as an open question, not resolved here):
+[benchmarks/mlkem-native-bench/README.md](benchmarks/mlkem-native-bench/README.md)
+and [benchmarks/mlkem-ffm-bench/README.md](benchmarks/mlkem-ffm-bench/README.md).
 
 **Levers 4 and 5 are complementary, not competing** — they save different
 kinds of time, quantifiably: lever 4 saves ~2ms once per process launch;
-lever 5, if integrated, would save ~0.13-0.15ms per handshake, every
-handshake. For the fresh-process-per-handshake shape lever 4 targets,
-lever 4's one-time saving is ~13,460x larger, making it the clear choice.
-For a long-running server handling many connections on one process — the
-shape lever 4 explicitly doesn't cover — lever 5's saving compounds
-linearly and would overtake lever 4's fixed saving after roughly 13,460
-handshakes, continuing to grow afterward while lever 4's contribution stays
-flat. Which lever matters more is a question about process lifetime, not
-which technique is objectively better.
+lever 5, now confirmed via real FFM integration (not just a ceiling), would
+save ~0.14ms per handshake vs. BC, every handshake. For the fresh-process
+-per-handshake shape lever 4 targets, lever 4's one-time saving is ~14,050x
+larger, making it the clear choice. For a long-running server handling many
+connections on one process — the shape lever 4 explicitly doesn't cover —
+lever 5's saving compounds linearly and would overtake lever 4's fixed
+saving after roughly 14,050 handshakes, continuing to grow afterward while
+lever 4's contribution stays flat. Which lever matters more is a question
+about process lifetime, not which technique is objectively better.
 
 **Lever 6 (exploratory) — does pure Java have any real headroom left, or
 is native the only way to close the gap to lever 5?** Java's Vector API
@@ -339,13 +356,20 @@ pursued, it's independent of the Arm64 hardware work and could be picked
 up without further infrastructure. Native Arm64 acceleration via
 `mlkem-native` (lever 5 above) had its *ceiling* measured directly on real
 hardware (~4.3-4.6x on the primitive, exceeding the ~2-5x expected from
-independent literature) and the specific reason OpenJDK didn't take this
+independent literature), the specific reason OpenJDK didn't take this
 route for JDK 25 itself was researched (a portability/trusted-computing
 -base design choice, not a technical blocker, per JEP 496's own stated
-rationale) - but the actual Java integration (FFM API bridge into
-`ProviderBootstrap`/BCJSSE, replacing BC's pure-Java ML-KEM path with calls
-into the native library) was not implemented, so no end-to-end handshake
-number exists for it the way levers 1-4 have.
+rationale), and a real FFM integration (calling the native library's
+keypair/encaps/decaps directly from Java via `java.lang.foreign`, no JNI,
+correctness-verified via shared-secret agreement across the FFI boundary)
+confirmed ~85% of that ceiling survives real integration (~3.7-4.0x, not
+just the ~4.3-4.6x ceiling) - see
+[benchmarks/mlkem-ffm-bench/README.md](benchmarks/mlkem-ffm-bench/README.md).
+**What's still not done:** wiring this into `ProviderBootstrap`/BCJSSE
+itself, replacing BC's pure-Java ML-KEM path with calls into the native
+library for a real end-to-end handshake, so no full-handshake number exists
+for this lever the way levers 1-4 have - the FFM binding calls the three
+KEM operations directly, not through the actual mTLS reference service.
 
 ## Setup Instructions
 

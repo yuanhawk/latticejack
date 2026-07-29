@@ -1,0 +1,42 @@
+[mlkem-ffm-bench] host: real Azure Cobalt 100 (Neoverse-N2), Linux aarch64
+Linux latticejack-arm64-runner 6.17.0-1020-azure #20~24.04.1-Ubuntu SMP Fri Jun 19 20:26:28 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+openjdk version "21.0.11" 2026-04-21
+OpenJDK Runtime Environment (build 21.0.11+10-1-24.04.2-Ubuntu)
+OpenJDK 64-Bit Server VM (build 21.0.11+10-1-24.04.2-Ubuntu, mixed mode, sharing)
+
+===== RUN 1 =====
+WARNING: A restricted method in java.lang.foreign.SymbolLookup has been called
+WARNING: java.lang.foreign.SymbolLookup::libraryLookup has been called by the unnamed module
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for this module
+
+[mlkem-ffm-bench] loaded /home/azureuser/mlkem-native/libmlkem768ffm.so, symbols bound
+[mlkem-ffm-bench] correctness: OK (encaps/decaps shared secrets agree, 50 trials)
+
+keygen (via FFM) us: p50=15.81 p10=15.78 p90=16.38
+encaps (via FFM) us: p50=15.10 p10=15.08 p90=15.15
+decaps (via FFM) us: p50=16.39 p10=16.37 p90=16.41
+
+===== RUN 2 =====
+WARNING: A restricted method in java.lang.foreign.SymbolLookup has been called
+WARNING: java.lang.foreign.SymbolLookup::libraryLookup has been called by the unnamed module
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for this module
+
+[mlkem-ffm-bench] loaded /home/azureuser/mlkem-native/libmlkem768ffm.so, symbols bound
+[mlkem-ffm-bench] correctness: OK (encaps/decaps shared secrets agree, 50 trials)
+
+keygen (via FFM) us: p50=15.81 p10=15.78 p90=16.27
+encaps (via FFM) us: p50=15.11 p10=15.09 p90=15.15
+decaps (via FFM) us: p50=16.39 p10=16.37 p90=16.41
+
+===== RUN 3 =====
+WARNING: A restricted method in java.lang.foreign.SymbolLookup has been called
+WARNING: java.lang.foreign.SymbolLookup::libraryLookup has been called by the unnamed module
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for this module
+
+[mlkem-ffm-bench] loaded /home/azureuser/mlkem-native/libmlkem768ffm.so, symbols bound
+[mlkem-ffm-bench] correctness: OK (encaps/decaps shared secrets agree, 50 trials)
+
+keygen (via FFM) us: p50=15.83 p10=15.80 p90=16.10
+encaps (via FFM) us: p50=15.13 p10=15.11 p90=15.21
+decaps (via FFM) us: p50=16.38 p10=16.37 p90=16.40
+
