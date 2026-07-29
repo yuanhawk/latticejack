@@ -1,0 +1,32 @@
+diff --git a/test/hal/hal.c b/test/hal/hal.c
+index 4b3fbfb..f1848fd 100644
+--- a/test/hal/hal.c
++++ b/test/hal/hal.c
+@@ -379,8 +379,26 @@ uint64_t get_cyclecounter(void)
+ 
+ #else /* !__ZEPHYR__ && !PMU_CYCLES && !PERF_CYCLES && MAC_CYCLES */
+ 
++/* Latticejack local patch (CYCLES=NO fallback): the upstream fallback here
++ * just returns a constant 0, since this project has no fixed-cycle-rate
++ * counter. PMU/PERF cycle counters need elevated permissions this project's
++ * cloud VM doesn't grant by default (perf_event_paranoid, PMU userspace
++ * access) - swapped in CLOCK_MONOTONIC nanoseconds instead, which needs no
++ * special permission and gives directly-comparable units to this project's
++ * other ML-KEM microbenchmark (benchmarks/mlkem-microbench, JCA-level,
++ * also in real time units, not raw cycles). The existing print_median/
++ * print_percentiles functions just label the column "cycles" - values are
++ * actually nanoseconds with this patch in place. Not upstreamed; local to
++ * this repro only. */
++#include <time.h>
++
+ void enable_cyclecounter(void) { return; }
+ void disable_cyclecounter(void) { return; }
+-uint64_t get_cyclecounter(void) { return (0); }
++uint64_t get_cyclecounter(void)
++{
++  struct timespec ts;
++  clock_gettime(CLOCK_MONOTONIC, &ts);
++  return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
++}
+ 
+ #endif /* !__ZEPHYR__ && !PMU_CYCLES && !PERF_CYCLES && !MAC_CYCLES */

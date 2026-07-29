@@ -138,15 +138,20 @@ C1-only measured +0.01%, i.e. no different from default):
 **Why the local signal didn't hold, and it's a coherent explanation, not a
 shrug:** on the fast dev machine, real handshake crypto cost is only
 ~3-4ms, so JIT-compilation-strategy differences are a large fraction of
-that tiny total and show up clearly. On the real Arm64 target, crypto cost
-dominates so completely (~88ms) that JIT/GC tuning differences become
-rounding error by comparison — there simply isn't enough non-crypto time
-left in the budget for these flags to move. This is the same shape of
+that tiny total and show up clearly. On the real Arm64 target, none of the
+factors JVM tuning flags can influence (GC, JIT tier) come close to
+mattering next to the rest of the ~88ms handshake cost, so secondary JVM
+effects become rounding error by comparison. This is the same shape of
 result as the JDK 25 finding above: **local dev-machine signals have
-repeatedly overstated real-hardware impact for this workload**, because
-the target hardware's much larger crypto compute cost swamps every
-secondary effect tested so far (JVM flags, session resumption's classical
-case, and JDK 25's touted speedup).
+repeatedly overstated real-hardware impact for this workload**.
+(*Correction, added after `benchmarks/mlkem-native-bench/` measured ML
+-KEM's raw operation cost directly: an earlier version of this paragraph
+attributed the ~88ms to "crypto compute" dominating so completely that
+nothing else could matter. That's not literally supportable — even BC's
+slowest measured ML-KEM operations total ~190µs, three orders of magnitude
+below 88ms. What actually consumes the rest of that 88ms was not isolated
+by this project; see `benchmarks/mlkem-native-bench/README.md`'s "An
+honest correction" section for the full discussion.*)
 
 ## Reading all of this honestly
 
@@ -163,12 +168,13 @@ case, and JDK 25's touted speedup).
   arm-hackathon-plan.md §9's own risk register: "if a lever shows no
   effect, that's still a reportable finding... honest engineering rather
   than a null result."
-- The pattern across every lever tested points at the same underlying
-  conclusion: **the dominant, hard-to-avoid cost on this hardware is the
-  ML-KEM cryptographic computation itself** (per the source-grounded
-  Opus/Fable analysis, mostly Keccak/SHA3 hashing, not the NTT) - and
-  nothing tried so far touches that directly except the JDK 25 comparison,
-  which itself only closed a modest 5-11% of the gap on real hardware. See
-  `benchmarks/mlkem-microbench/README.md` for that finding and the
-  remaining, larger levers (Vector API NTT, allocation reduction) neither
-  yet attempted.
+- Neither lever tried here (session resumption, JVM tuning) touches ML-KEM's
+  own computation directly, and per the source-grounded Opus/Fable analysis
+  its cost is mostly Keccak/SHA3 hashing, not the NTT. Two later B2 levers
+  do attack that primitive directly: JDK 25's built-in intrinsic (only
+  closed a modest ~8.7% of the BC gap on real hardware, `benchmarks/mlkem
+  -microbench/README.md`) and `mlkem-native`'s NEON-optimized C
+  implementation, which found a much larger ~4.3-4.6x gap on the same
+  hardware — see `benchmarks/mlkem-native-bench/README.md`, including a
+  correction to this document's own earlier overstatement of how much of
+  the full ~88ms handshake that crypto cost actually explains.

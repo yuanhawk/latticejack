@@ -1,0 +1,35 @@
+[mlkem-native-bench] host: real Azure Cobalt 100 (Neoverse-N2), Linux aarch64
+Linux latticejack-arm64-runner 6.17.0-1020-azure #20~24.04.1-Ubuntu SMP Fri Jun 19 20:26:28 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+(units: nanoseconds, via CLOCK_MONOTONIC wall-clock patch - see hal-walltime.patch)
+
+===== RUN 1 =====
+   keypair cycles = 11850
+    encaps cycles = 13043
+    decaps cycles = 16222
+
+           percentile           1          10          20          30          40          50          60          70          80          90          99
+   keypair percentiles:       11819       11835       11840       11843       11847       11850       11854       11858       11865       11960       12544
+    encaps percentiles:       13010       13025       13033       13037       13040       13043       13047       13050       13057       13236       13738
+    decaps percentiles:       16190       16206       16211       16215       16218       16222       16226       16229       16236       16366       16917
+
+===== RUN 2 =====
+   keypair cycles = 11839
+    encaps cycles = 13068
+    decaps cycles = 16200
+
+           percentile           1          10          20          30          40          50          60          70          80          90          99
+   keypair percentiles:       11807       11823       11828       11832       11836       11839       11842       11847       11853       11886       12532
+    encaps percentiles:       13037       13054       13058       13062       13065       13068       13072       13075       13083       13190       13765
+    decaps percentiles:       16167       16184       16189       16193       16197       16200       16204       16208       16215       16285       16898
+
+===== RUN 3 =====
+   keypair cycles = 11853
+    encaps cycles = 13044
+    decaps cycles = 16223
+
+           percentile           1          10          20          30          40          50          60          70          80          90          99
+   keypair percentiles:       11823       11836       11842       11846       11849       11853       11856       11860       11866       11914       12551
+    encaps percentiles:       13014       13026       13033       13037       13041       13044       13048       13052       13057       13128       13737
+    decaps percentiles:       16191       16205       16212       16215       16219       16223       16227       16231       16237       16413       16919
+

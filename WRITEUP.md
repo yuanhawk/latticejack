@@ -99,10 +99,11 @@ measurement pass (full story in
 
 The plan's 40-point criterion rewards genuinely leveraging Arm-powered
 platforms with efficiency-minded design, not just deploying on Arm64. This
-project tried four concrete optimization levers, measured every one on
+project tried five concrete optimization levers, measured every one on
 real hardware (not a laptop), and reports what actually happened —
 including two honest null results, one precisely root-caused, non-obvious
-finding, and one confirmed positive win, all cross-validated with
+finding, and two confirmed positive wins (one end-to-end, one measuring the
+ceiling for a not-yet-integrated one), all cross-validated with
 independent-model review (Opus and Fable, given the same question,
 converged independently) or 3-run real-hardware averaging before being
 trusted.
@@ -124,8 +125,15 @@ level).** A promising local signal on a fast dev machine
 on real Arm64 hardware** — every variant landed within ~1% of baseline.
 The explanation is coherent, not a shrug: on a fast machine, real crypto
 compute is a few milliseconds, so JIT-strategy differences are a large
-fraction of a tiny total; on the real target, crypto compute dominates so
-completely (~88ms) that secondary JVM effects become rounding error.
+fraction of a tiny total; on the real target, none of the factors JVM
+tuning flags can influence (GC, JIT tier) come close to mattering next to
+the rest of the handshake cost, so secondary JVM effects become rounding
+error. (An earlier version of this explanation said crypto compute
+"dominates so completely (~88ms)," read literally as ML-KEM math itself
+explaining the full 88ms handshake latency — lever 5 below shows that's not
+supportable: even BC's raw ML-KEM operations only total ~190µs, three
+orders of magnitude smaller. Corrected there rather than left standing now
+that contradicting data exists.)
 
 **Lever 3 — is JDK 25's built-in ML-KEM actually faster, and by how much
 on real Arm64?** JDK 25 (JEP 496) ships hand-written AArch64 intrinsics
@@ -229,12 +237,46 @@ so this lever plausibly matters more in a typical Arm cloud deployment
 shape even though the underlying mechanism isn't Arm-specific. Full
 results: [benchmarks/graalvm-native-image/README.md](benchmarks/graalvm-native-image/README.md).
 
-Together, the four levers point at a coherent picture of what "efficiency-
+**Lever 5 — mlkem-native, the primitive-level lever levers 1-3 pointed at.**
+[`pq-code-package/mlkem-native`](https://github.com/pq-code-package/mlkem-native)
+is a formally-verified C implementation with hand-optimized AArch64 NEON
+assembly, run standalone (not integrated into the Java service - this
+measures the *ceiling*, not an end-to-end result) on the same real Cobalt
+100 hardware, 3-run averaged, confirmed compiling and running the actual
+NEON backend (not a portable C fallback):
+
+| Operation | mlkem-native | BC (warm) | JDK 25 (warm) | vs BC | vs JDK 25 |
+|---|---|---|---|---|---|
+| keygen | 11.85 µs | 72.66 µs | 65.35 µs | 6.1x | 5.5x |
+| encaps | 13.05 µs | 58.83 µs | 56.02 µs | 4.5x | 4.3x |
+| decaps | 16.22 µs | 58.33 µs | 54.61 µs | 3.6x | 3.4x |
+
+**~4.3-4.6x faster overall** — the largest per-operation gap any lever in
+this project found, dwarfing JDK 25's ~8.7% intrinsic gain over BC on the
+same chip. Full mechanism, the wall-clock-vs-cycle-counter methodology note,
+and an honest correction to lever 2's "(~88ms)" framing above (this
+benchmark's own numbers rule out ML-KEM math alone explaining the full B1
+handshake latency — flagged as an open question, not resolved here):
+[benchmarks/mlkem-native-bench/README.md](benchmarks/mlkem-native-bench/README.md).
+
+**Levers 4 and 5 are complementary, not competing** — they save different
+kinds of time, quantifiably: lever 4 saves ~2ms once per process launch;
+lever 5, if integrated, would save ~0.13-0.15ms per handshake, every
+handshake. For the fresh-process-per-handshake shape lever 4 targets,
+lever 4's one-time saving is ~13,460x larger, making it the clear choice.
+For a long-running server handling many connections on one process — the
+shape lever 4 explicitly doesn't cover — lever 5's saving compounds
+linearly and would overtake lever 4's fixed saving after roughly 13,460
+handshakes, continuing to grow afterward while lever 4's contribution stays
+flat. Which lever matters more is a question about process lifetime, not
+which technique is objectively better.
+
+Together, the five levers point at a coherent picture of what "efficiency-
 minded design" on Arm64 actually requires for this workload: attacking
-handshake crypto cost directly (native NEON acceleration via
-`mlkem-native`, identified but not yet attempted) for a warm, long-running
-server; and using ahead-of-time compilation for anything that pays JVM
-startup cost per unit of work.
+handshake crypto cost directly (lever 5, `mlkem-native` - ceiling measured,
+integration not yet attempted) for a warm, long-running server; and using
+ahead-of-time compilation (lever 4) for anything that pays JVM startup cost
+per unit of work.
 
 ### Infrastructure — real, not simulated
 
@@ -259,12 +301,16 @@ started.** This project prioritized Component B2 (the Arm64 optimization
 work, the plan's own explicitly-protected centerpiece and the 40-point
 criterion) over Component C per the plan's own fallback ladder. If
 pursued, it's independent of the Arm64 hardware work and could be picked
-up without further infrastructure. Native Arm64 acceleration
-(`mlkem-native` via Java's FFM API) was researched in depth — feasibility,
-expected magnitude (~2-5x on the primitive, per independent literature),
-and the specific reason OpenJDK didn't take this route for JDK 25 itself
-(a portability/trusted-computing-base design choice, not a technical
-blocker, per JEP 496's own stated rationale) — but not implemented.
+up without further infrastructure. Native Arm64 acceleration via
+`mlkem-native` (lever 5 above) had its *ceiling* measured directly on real
+hardware (~4.3-4.6x on the primitive, exceeding the ~2-5x expected from
+independent literature) and the specific reason OpenJDK didn't take this
+route for JDK 25 itself was researched (a portability/trusted-computing
+-base design choice, not a technical blocker, per JEP 496's own stated
+rationale) - but the actual Java integration (FFM API bridge into
+`ProviderBootstrap`/BCJSSE, replacing BC's pure-Java ML-KEM path with calls
+into the native library) was not implemented, so no end-to-end handshake
+number exists for it the way levers 1-4 have.
 
 ## Setup Instructions
 
