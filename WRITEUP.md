@@ -157,7 +157,11 @@ analysis of BouncyCastle's actual source) turned out to **default to
 `false` on Neoverse-N2 but `true` on Apple Silicon**. Forcing it on only
 yielded ~3.9%, inconsistent in direction across runs — evidence that
 HotSpot's Neoverse default is already empirically correct, not an
-oversight. Full mechanism-level writeup:
+oversight. A specific, plausible fix for this exact gap exists upstream
+(JDK-8359256, backed by OpenJDK's own Graviton 3 measurements) — checked
+directly by installing JDK 26.0.2 on the same hardware rather than trusting
+secondhand sources: **the fix has not shipped**, flag defaults are
+identical to JDK 25. Full mechanism-level writeup:
 [benchmarks/mlkem-microbench/README.md](benchmarks/mlkem-microbench/README.md).
 
 **The consistent throughline across all three levers:** ML-KEM's own
