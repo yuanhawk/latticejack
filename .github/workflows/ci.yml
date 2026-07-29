@@ -8,23 +8,32 @@ on:
 
 jobs:
   build-and-verify:
-    name: build + verify (${{ matrix.runner }})
+    name: build + verify (${{ matrix.label }})
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ !matrix.required }}
+    # Only meaningful for the self-hosted leg: that runner lives on an Azure
+    # VM stopped between uses (cost control) rather than left running, so a
+    # push while it's off would otherwise queue for hours waiting for a
+    # runner that isn't coming - fail fast instead of hanging.
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Required gate: always-available x86_64 runner.
+          # Required gate: always-available GitHub-hosted x86_64 runner.
           - runner: ubuntu-latest
+            label: ubuntu-latest
             required: true
-          # Bonus, non-blocking: GitHub-hosted Arm64 runner, matching this
-          # project's actual target platform (arm-hackathon-plan.md). Not
-          # required because Arm64 hosted-runner availability/quota can
-          # vary by plan on a private repo - a failure here shouldn't
-          # redden the whole pipeline, but a pass is genuine proof this
-          # runs on Arm64, not just x86.
-          - runner: ubuntu-24.04-arm
+          # Bonus, non-blocking: the actual target hardware
+          # (arm-hackathon-plan.md) - an Azure Cobalt 100 (Neoverse-N2) VM,
+          # registered as a self-hosted runner (see docs/arm64-instance-setup.md).
+          # Not required because the VM is intentionally stopped between
+          # uses to control cost, so it won't always be online - a failure
+          # here shouldn't redden the whole pipeline, but a pass is genuine
+          # proof this runs on the real target Arm64 silicon, not a generic
+          # hosted Arm64 runner.
+          - runner: [self-hosted, ARM64, azure]
+            label: self-hosted-azure-cobalt100
             required: false
     steps:
       - uses: actions/checkout@v4

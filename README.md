@@ -4,19 +4,25 @@ Arm AI Optimization Challenge, Track 2 (Migration/Adoption). Full plan: [arm-hac
 
 Migrates a Java TLS/mTLS reference service from classical crypto
 (ECDSA/X25519) to hybrid post-quantum crypto (ML-KEM), then tunes the
-migrated path for Arm64 (AWS Graviton / Ampere). Migration mechanics: see
-[MIGRATION.md](MIGRATION.md).
+migrated path for Arm64 (Azure Cobalt 100 today; AWS Graviton / Ampere
+supported too — see [docs/arm64-instance-setup.md](docs/arm64-instance-setup.md)).
+Migration mechanics: see [MIGRATION.md](MIGRATION.md).
 
 ## Status
 
 | Piece | State |
 |---|---|
-| **Before** (classical mTLS, JDK-only) | Working — `./run-before.sh` |
-| **After** (hybrid X25519MLKEM768 KEX) | **Working** — `./run-after.sh`, self-verifying (fails loudly if the hybrid group doesn't actually negotiate). See [MIGRATION.md](MIGRATION.md) and [docs/bouncycastle-pqc-notes.md](docs/bouncycastle-pqc-notes.md) §3a. |
+| **Before** (classical mTLS, JDK-only) | Working — `./run before`, verified on real Arm64 |
+| **After** (hybrid X25519MLKEM768 KEX) | **Working** — `./run after`, self-verifying, verified on real Arm64. See [MIGRATION.md](MIGRATION.md) and [docs/bouncycastle-pqc-notes.md](docs/bouncycastle-pqc-notes.md) §3a. |
 | ML-DSA certificate auth | **Deliberately deferred** to a stretch goal — experimental upstream in BouncyCastle, not enabled by default ([bcgit/bc-java#2102](https://github.com/bcgit/bc-java/issues/2102)). See MIGRATION.md "Scope." |
-| Arm64 benchmarking (B1) | **Harness built and working** — `./run-benchmark.sh {before\|after}`, smoke-tested locally; not yet run on real Arm64 cloud hardware. See [benchmarks/README.md](benchmarks/README.md). |
-| Arm64 optimization (B2) | Not started — blocked on Arm64 cloud access |
+| Arm64 benchmarking (B1) | **Done on real hardware** — Azure Cobalt 100 (Neoverse-N2), `./run-benchmark.sh`. PQC hybrid costs ~97% more p50 latency, ~58% less throughput vs. classical baseline. See [benchmarks/samples/azure-cobalt100-2vcpu/README.md](benchmarks/samples/azure-cobalt100-2vcpu/README.md). |
+| Arm64 optimization (B2) | Not started — baseline numbers now in place to measure a tuning delta against |
 | Authoring guardrail / CBOM (Component C) | Not started |
+
+## Infrastructure
+
+- **Arm64 instance:** Azure `Standard_D2pls_v6` (2 vCPU, Cobalt 100/Neoverse-N2), `eastus2`, resource group `latticejack-arm64-rg-2` — provisioning steps in [docs/arm64-instance-setup.md](docs/arm64-instance-setup.md) Option C. Stopped between uses to control cost (`az vm deallocate`) — start it (`az vm start`) before pushing if you need CI to actually run, or before re-benchmarking.
+- **CI:** GitHub Actions, required leg on `ubuntu-latest`, bonus non-blocking leg on the Arm64 VM itself registered as a self-hosted runner — real target hardware, and sidesteps GitHub-hosted Actions minute billing. See `.github/workflows/ci.yml`.
 
 ## Quick start
 
@@ -62,6 +68,7 @@ scripts/gen-classical-keys.sh        classical (ECDSA P-256) test keystore gener
 scripts/require-jdk21.sh             JDK 21 pinning, sourced by the run scripts
 run / run-before.sh / run-after.sh   the two configurations, per arm-hackathon-plan.md §3
 run-benchmark.sh, benchmarks/        B1 characterization harness (latency/throughput/bytes-on-wire)
+benchmarks/samples/                  tracked real-hardware results (not gitignored, unlike benchmarks/results/)
 MIGRATION.md                         the step-by-step migration procedure + gotchas
 docs/bouncycastle-pqc-notes.md       BouncyCastle PQC/JSSE research + full debugging log
 docs/arm64-instance-setup.md         Arm64 provisioning guidance
