@@ -16,7 +16,7 @@ Migration mechanics: see [MIGRATION.md](MIGRATION.md).
 | **After** (hybrid X25519MLKEM768 KEX) | **Working** — `./run after`, self-verifying, verified on real Arm64. See [MIGRATION.md](MIGRATION.md) and [docs/bouncycastle-pqc-notes.md](docs/bouncycastle-pqc-notes.md) §3a. |
 | ML-DSA certificate auth | **Deliberately deferred** to a stretch goal — experimental upstream in BouncyCastle, not enabled by default ([bcgit/bc-java#2102](https://github.com/bcgit/bc-java/issues/2102)). See MIGRATION.md "Scope." |
 | Arm64 benchmarking (B1) | **Done on real hardware** — Azure Cobalt 100 (Neoverse-N2), `./run-benchmark.sh`. PQC hybrid costs ~95% more p50 latency, ~51% less throughput vs. classical baseline. Two methodology bugs found and fixed along the way (debug logging contaminating timings). See [benchmarks/samples/azure-cobalt100-2vcpu/README.md](benchmarks/samples/azure-cobalt100-2vcpu/README.md). |
-| Arm64 optimization (B2) | **Lever 1 (session resumption) tried, honestly negative** — contrary to the plan's "near-guaranteed win" assumption, measured benefit is ~2% (classical) / ~0% (PQC), after fixing three real benchmark bugs. PQC's ~0% result is flagged as an open question (BCJSSE shows no resumption-related log activity), not a confirmed root cause. See samples README above. Next lever not yet started. |
+| Arm64 optimization (B2) | **Two levers tried, both with real findings.** Lever 1 (session resumption): honestly negative — ~2%/~0% benefit, not the plan's assumed "near-guaranteed win." Lever 2 (JVM flags): `-XX:TieredStopAtLevel=1` shows a real -15.5% latency improvement locally, pending Arm64 confirmation. Bonus finding: JDK 25's built-in ML-KEM (marketed at ~2x BC's speed) only beats BC by ~5-11% on real Arm64 server hardware — and BC is often *faster* at cold start. See [benchmarks/samples/azure-cobalt100-2vcpu/README.md](benchmarks/samples/azure-cobalt100-2vcpu/README.md) and [benchmarks/mlkem-microbench/README.md](benchmarks/mlkem-microbench/README.md). |
 | Authoring guardrail / CBOM (Component C) | Not started |
 
 ## Infrastructure
@@ -55,6 +55,13 @@ how it works (BCJSSE exposes no direct API for this). Set
 See [benchmarks/README.md](benchmarks/README.md) for what's measured and how,
 and [benchmarks/samples/azure-cobalt100-2vcpu/README.md](benchmarks/samples/azure-cobalt100-2vcpu/README.md)
 for real-hardware results including the session-resumption (B2 lever 1) finding.
+
+`benchmarks/mlkem-microbench/` is a separate, JDK-25-required standalone
+comparison of BC's pure-Java ML-KEM against JDK 25's own built-in
+implementation — not part of the main build. See its
+[README](benchmarks/mlkem-microbench/README.md) for why the widely-cited
+"JDK 25 makes ML-KEM ~2x faster" claim doesn't hold up on real Arm64 server
+hardware the way it does on Apple Silicon.
 
 ## Running on Arm64
 
