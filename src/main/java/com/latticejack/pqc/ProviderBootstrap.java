@@ -12,6 +12,8 @@ import javax.net.ssl.TrustManagerFactory;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.jsse.provider.BouncyCastleJsseProvider;
 
+import com.latticejack.pqc.nativekem.NativeMlkemProvider;
+
 /**
  * Installs BouncyCastle (BC Java 1.85, confirmed docs/bouncycastle-pqc-notes.md)
  * and builds a BCJSSE {@link SSLContext} explicitly.
@@ -87,13 +89,45 @@ final class ProviderBootstrap {
             bc = new BouncyCastleProvider();
             Security.insertProviderAt(bc, 1);
         }
+        // Opt-in native ML-KEM-768 path (mlkem-native's NEON C implementation
+        // via FFM, see src/main/java/com/latticejack/pqc/nativekem/) - OFF
+        // by default, so the existing default handshake path is completely
+        // unaffected unless explicitly requested. See
+        // NativeMlkemProvider's Javadoc for the full mechanism.
+        boolean nativeKem = Boolean.getBoolean("latticejack.tls.nativekem");
+        if (nativeKem && Security.getProvider(NativeMlkemProvider.NAME) == null) {
+            // Ahead of "BC" (lower index = higher priority) so that the
+            // plain JCA provider-precedence search performed by the
+            // no-arg-constructed BCJSSE below (KeyPairGenerator.getInstance(
+            // alg), no explicit provider) resolves ML-KEM services here
+            // instead of in BC's own pure-Java implementation. Must run
+            // AFTER bc is registered above: Security.insertProviderAt(_, 1)
+            // always claims the top slot, so doing this first would just
+            // get bumped back down by BC's own insertProviderAt(bc, 1)
+            // once BC installs.
+            Security.insertProviderAt(new NativeMlkemProvider(), 1);
+        }
+
         BouncyCastleJsseProvider bcJsse = (BouncyCastleJsseProvider) Security.getProvider("BCJSSE");
         if (bcJsse == null) {
-            bcJsse = new BouncyCastleJsseProvider(bc);
+            // The no-arg constructor is REQUIRED for the native ML-KEM path
+            // to be reachable at all: it wires BCJSSE's crypto helper to a
+            // DefaultJcaJceHelper (plain KeyPairGenerator.getInstance(alg),
+            // ordinary JCA provider-precedence search), whereas the pinned
+            // single-arg BouncyCastleJsseProvider(bc) constructor used below
+            // (and always, when the flag is unset) wires a
+            // ProviderJcaJceHelper bound to that specific BC instance
+            // (KeyPairGenerator.getInstance(alg, bc)), which can NEVER see
+            // another provider - confirmed via
+            // org.bouncycastle.tls.crypto.impl.jcajce.JcaTlsCryptoProvider
+            // (bctls sources jar). Default (flag unset) behavior is exactly
+            // as before: still the pinned constructor.
+            bcJsse = nativeKem ? new BouncyCastleJsseProvider() : new BouncyCastleJsseProvider(bc);
             Security.insertProviderAt(bcJsse, 2);
         }
         System.out.println("[provider-bootstrap] installed BouncyCastle " + bc.getVersionStr()
-                + " + BCJSSE, namedGroups=" + String.join(",", NAMED_GROUPS));
+                + " + BCJSSE" + (nativeKem ? " + " + NativeMlkemProvider.NAME + " (native ML-KEM-768)" : "")
+                + ", namedGroups=" + String.join(",", NAMED_GROUPS));
     }
 
     /** Builds an SSLContext from BCJSSE explicitly - see class Javadoc for why this is required. */

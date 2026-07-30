@@ -1,7 +1,7 @@
 {
   "bomFormat": "CycloneDX",
   "specVersion": "1.6",
-  "serialNumber": "urn:uuid:f30794fd-0fb2-4d28-91e6-4560be6dc9ca",
+  "serialNumber": "urn:uuid:f901fb44-2fe6-4c73-bf43-1addaa8e776e",
   "version": 1,
   "metadata": {
     "component": {
@@ -13,13 +13,6 @@
     }
   },
   "components": [
-    {
-      "type": "application",
-      "bom-ref": "latticejack-echo-tls-before",
-      "name": "latticejack-echo-tls",
-      "version": "before",
-      "description": "Latticejack mTLS reference service, before (classical) configuration."
-    },
     {
       "type": "cryptographic-asset",
       "name": "X25519",

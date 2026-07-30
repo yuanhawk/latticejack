@@ -18,9 +18,9 @@ Migration mechanics: see [MIGRATION.md](MIGRATION.md).
 | **After** (hybrid X25519MLKEM768 KEX) | **Working** — `./run after`, self-verifying, verified on real Arm64. See [MIGRATION.md](MIGRATION.md) and [docs/bouncycastle-pqc-notes.md](docs/bouncycastle-pqc-notes.md) §3a. |
 | ML-DSA certificate auth | **Deliberately deferred** to a stretch goal — experimental upstream in BouncyCastle, not enabled by default ([bcgit/bc-java#2102](https://github.com/bcgit/bc-java/issues/2102)). See MIGRATION.md "Scope." |
 | Arm64 benchmarking (B1) | **Done on real hardware** — Azure Cobalt 100 (Neoverse-N2), `./run-benchmark.sh`. PQC hybrid costs ~95% more p50 latency, ~51% less throughput vs. classical baseline. Two methodology bugs found and fixed along the way (debug logging contaminating timings). See [benchmarks/samples/azure-cobalt100-2vcpu/README.md](benchmarks/samples/azure-cobalt100-2vcpu/README.md). |
-| Arm64 optimization (B2) | **Eight levers tried on real hardware: two honest null results, one root-caused finding, five confirmed positive/informative results.** L1 (session resumption): ~2%/~0%, not the plan's assumed "near-guaranteed win." L2 (JVM flags): every variant within ~1% of baseline. L3 (JDK 25 built-in ML-KEM): only ~8.7% from its AArch64 intrinsic on real hardware vs. ~51% on Apple Silicon. **L4 (GraalVM native-image): ~7.9x faster cold-start** — largest *overall* win, general AOT-vs-JIT property (not Arm-specific), but real and large here. **L5 (mlkem-native, C+NEON): ~4.0x/~3.7x faster (BC/JDK25) end-to-end via real Java FFM integration** — largest *realized per-op* gap, ~85% of the raw ceiling survives FFI crossing. **L6 (Java Vector API, exploratory): ~6.7% faster**, pure Java, no native code, correctness-verified bit-identical to scalar. **L7 (RustCrypto, pure Rust, exploratory): ~1.3x faster than BC but ~3.0x slower than mlkem-native** — Rust's memory safety costs nothing vs. Java, but the L5 win is from hand-tuned assembly, not language. **L8 (pqcrypto, Rust-wrapping-C-NEON, exploratory): within 3.3% of mlkem-native's own speed** — confirms L7 with a positive control: same host language as L7, real assembly investment, ~2.9x faster than L7. L4/L5 are complementary (startup cost vs. per-handshake cost, ~14,050-handshake crossover), not competing. Full detail per lever: [graalvm-native-image](benchmarks/graalvm-native-image/README.md), [mlkem-native-bench](benchmarks/mlkem-native-bench/README.md) + [mlkem-ffm-bench](benchmarks/mlkem-ffm-bench/README.md), [vector-api-ntt](benchmarks/vector-api-ntt/README.md), [mlkem-rust-ffm-bench](benchmarks/mlkem-rust-ffm-bench/README.md), [pqcrypto-ffm-bench](benchmarks/pqcrypto-ffm-bench/README.md), [azure-cobalt100-2vcpu samples](benchmarks/samples/azure-cobalt100-2vcpu/README.md), [mlkem-microbench](benchmarks/mlkem-microbench/README.md). |
-| Root-cause: what's actually in the 88ms handshake? | **Resolved with real hardware CPU profiling** via [Arm Performix](https://developer.arm.com/servers-and-cloud-computing/arm-performix) — ~73% JVM overhead (JIT compiler passes + interpreter), only ~5.55% BouncyCastle (crypto + protocol combined). Directly explains why L4 (native-image, which eliminates JIT) is this project's largest B2 win. See [benchmarks/arm-performix-profile/README.md](benchmarks/arm-performix-profile/README.md). |
-| Authoring guardrail / CBOM (Component C) | **Done.** [`skills/pqc-authoring/`](skills/pqc-authoring/SKILL.md) — a Claude Code Skill that reviews new/changed TLS code for regressions back to classical-only crypto, proven against a real regression this project hit once (`SSLContext.getDefault()` silently negotiating classical, no runtime error — see the [worked example](skills/pqc-authoring/examples/worked-example.md)). [`component-c/cbom/`](component-c/README.md) — `./run cbom {before\|after}` emits a CycloneDX 1.6 CBOM, validated against the real published schema, honestly showing ECDSA-P256 (cert auth) as still-unmigrated in the "after" BOM since that's the actual state of this project's migration scope. |
+| Arm64 optimization (B2) | **Eight levers tried on real hardware: two honest null results, one root-caused finding, five confirmed positive/informative results.** L1 (session resumption): ~2%/~0%, not the plan's assumed "near-guaranteed win." L2 (JVM flags): every variant within ~1% of baseline. L3 (JDK 25 built-in ML-KEM): only ~8.7% from its AArch64 intrinsic on real hardware vs. ~51% on Apple Silicon. **L4 (GraalVM native-image): ~7.9x faster cold-start** — largest *overall* win, general AOT-vs-JIT property (not Arm-specific), but real and large here. **L5 (mlkem-native, C+NEON): ~4.0x/~3.7x faster (BC/JDK25) end-to-end via real Java FFM integration** — largest *realized per-op* gap, ~85% of the raw ceiling survives FFI crossing; now also wired into the real mTLS handshake behind an opt-in flag (`-Dlatticejack.tls.nativekem=true`), positively verified (not just "handshake succeeded") on real Arm64, with p50 parity and a modest tail-latency/throughput edge at the full-handshake level — **not deployable as shipped: the linked shared library uses a deterministic test-only RNG stub, not a CSPRNG, so this specific build's key material is predictable, not secret** — see [nativekem-e2e-bench](benchmarks/nativekem-e2e-bench/README.md) for the full caveat. **L6 (Java Vector API, exploratory): ~6.7% faster**, pure Java, no native code, correctness-verified bit-identical to scalar. **L7 (RustCrypto, pure Rust, exploratory): ~1.3x faster than BC but ~3.0x slower than mlkem-native** — Rust's memory safety costs nothing vs. Java, but the L5 win is from hand-tuned assembly, not language. **L8 (pqcrypto, Rust-wrapping-C-NEON, exploratory): within 3.3% of mlkem-native's own speed** — confirms L7 with a positive control: same host language as L7, real assembly investment, ~2.9x faster than L7. L4/L5 are complementary (startup cost vs. per-handshake cost, ~14,050-handshake crossover), not competing. Full detail per lever: [graalvm-native-image](benchmarks/graalvm-native-image/README.md), [mlkem-native-bench](benchmarks/mlkem-native-bench/README.md) + [mlkem-ffm-bench](benchmarks/mlkem-ffm-bench/README.md), [vector-api-ntt](benchmarks/vector-api-ntt/README.md), [mlkem-rust-ffm-bench](benchmarks/mlkem-rust-ffm-bench/README.md), [pqcrypto-ffm-bench](benchmarks/pqcrypto-ffm-bench/README.md), [azure-cobalt100-2vcpu samples](benchmarks/samples/azure-cobalt100-2vcpu/README.md), [mlkem-microbench](benchmarks/mlkem-microbench/README.md). |
+| Root-cause: what's actually in the 88ms handshake? | **Still open — a real, committed CPU profile exists, corroborating but not conclusive.** [Arm Performix](https://developer.arm.com/servers-and-cloud-computing/arm-performix) profiling of the full benchmark script found ~73% JVM overhead (JIT + interpreter), only ~5.55% BouncyCastle — but an independent Opus+Fable audit found the profiled workload includes a Maven build and ~8-10 JVM cold starts (not an isolated warm handshake), a CPU-sampling profiler can't see the ~94% of handshake time that's off-CPU, and this project's own lever 2 result (C1-only JIT, ~0.01% from baseline) is in tension with "JIT dominates the warm handshake." Corroborates lever 4's mechanism; doesn't decompose the 88ms. See [benchmarks/arm-performix-profile/README.md](benchmarks/arm-performix-profile/README.md) for the full honest rewrite. |
+| Authoring guardrail / CBOM (Component C) | **Done.** [`skills/pqc-authoring/`](skills/pqc-authoring/SKILL.md) — a Claude Code Skill that reviews new/changed TLS code for regressions back to classical-only crypto, demonstrated (not executed as an automated test) against a real regression this project hit once (`SSLContext.getDefault()` silently negotiating classical, no runtime error — see the [worked example](skills/pqc-authoring/examples/worked-example.md), an authored walkthrough, not a recorded transcript of the skill actually running). [`component-c/cbom/`](component-c/README.md) — `./run cbom {before\|after}` emits a CycloneDX 1.6 CBOM, validated against the real published schema with a committed, reproducible validator (`component-c/cbom/validate_cbom.py`), honestly showing ECDSA-P256 (cert auth) as still-unmigrated in the "after" BOM since that's the actual state of this project's migration scope. |
 
 ## Infrastructure
 
@@ -83,9 +83,36 @@ primitive). `benchmarks/mlkem-ffm-bench/` closes that loop: an actual Java
 integration via `java.lang.foreign` (FFM, no JNI/native-image) calling the
 same library, correctness-verified via shared-secret agreement across the
 FFI boundary — B2 lever 5, ~4.0x (BC) / ~3.7x (JDK 25) realized end-to-end,
-~85% of the ceiling surviving real integration. Neither is wired into the
-actual mTLS reference service (a real JCA `KEMSpi` integration would be the
-next step), so still not a full-handshake number the way levers 1-4 have.
+~85% of the ceiling surviving real integration.
+
+**That integration is now also wired into the actual mTLS reference
+service.** `-Dlatticejack.tls.nativekem=true` (see
+[`ProviderBootstrap.java`](src/main/java/com/latticejack/pqc/ProviderBootstrap.java)
+and [`src/main/java/com/latticejack/pqc/nativekem/`](src/main/java/com/latticejack/pqc/nativekem/))
+makes `./run after`'s real hybrid X25519MLKEM768 handshake route ML-KEM-768
+through mlkem-native's FFM path instead of BC's pure-Java implementation —
+default (flag unset) behavior is unchanged. `./run-nativekem.sh` verifies
+this positively (a trace marker proving mlkem-native, not BC, handled the
+crypto, not just "the handshake succeeded"), on both macOS and real
+Linux/aarch64. A real bug was found and fixed getting there (BC's
+multi-release `bctls` jar resolves different JCA service names on JDK 17+
+than its base sources suggest). Timed full-handshake numbers on real
+Arm64 hardware show p50 parity with BC (expected — ML-KEM compute is
+microseconds against an ~89ms handshake) and a modest tail-latency/
+throughput edge (~2-4% lower p95/p99, ~7% higher throughput). **Not
+deployable as shipped, though:** the shared library backing this path
+links a deterministic test-only RNG stub instead of a CSPRNG, so its key
+material is predictable, not secret — an accepted shortcut while this
+stub only backed a standalone benchmark, a real problem now that it
+derives an actual handshake's session secret. Flagged as the most
+significant finding by an independent Opus audit of this feature. See
+[nativekem-e2e-bench/README.md](benchmarks/nativekem-e2e-bench/README.md)
+for the full mechanism, the bug, the real-hardware numbers, the RNG
+caveat in full (including the untaken CSPRNG-wiring path), and what else
+is still open (GraalVM native-image + this provider together is
+untested; FFI overhead isn't isolated inside a full handshake the way
+`mlkem-ffm-bench` isolated it standalone).
+
 See [mlkem-native-bench/README.md](benchmarks/mlkem-native-bench/README.md)
 and [mlkem-ffm-bench/README.md](benchmarks/mlkem-ffm-bench/README.md) for
 how this compares against lever 4 (complementary, not competing) and an
@@ -132,6 +159,8 @@ native-image/, scripts/build-native-image.sh, scripts/bench-native-image.sh
                                       GraalVM native-image build (B2 lever 4) + cold-start benchmark
 benchmarks/mlkem-native-bench/       mlkem-native (NEON) standalone C ceiling benchmark (B2 lever 5, ceiling)
 benchmarks/mlkem-ffm-bench/          mlkem-native via Java FFM - real integration (B2 lever 5, realized)
+benchmarks/nativekem-e2e-bench/      mlkem-native wired into the real mTLS handshake, opt-in flag (B2 lever 5, end-to-end)
+src/main/java/com/latticejack/pqc/nativekem/  JCA Provider routing ML-KEM-768 through mlkem-native's FFM path
 benchmarks/vector-api-ntt/           pure-Java SIMD (Vector API) NTT-shaped kernel benchmark (B2 lever 6)
 benchmarks/mlkem-rust-ffm-bench/     RustCrypto ml-kem raw + FFM benchmark - Rust vs C vs Java (B2 lever 7)
 benchmarks/pqcrypto-ffm-bench/       pqcrypto (Rust-wrapping-C-NEON) raw + FFM benchmark (B2 lever 8)

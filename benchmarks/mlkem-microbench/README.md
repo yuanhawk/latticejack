@@ -103,9 +103,11 @@ noise, not a stable number on their own):
 | Intrinsic ON | 66.07 µs |
 | Intrinsic OFF | 71.84 µs |
 
-The intrinsic contributes **~8.7%** on Neoverse-N2 — roughly **6x weaker**
-than the ~51% it delivers on Apple Silicon, for the identical flag on the
-identical JDK build. And as a sanity check: BC's numbers (which never
+The intrinsic contributes **~8.7% for keygen** (the operation this A/B
+test isolated - no equivalent toggled encaps/decaps data was captured) on
+Neoverse-N2 — roughly **6x weaker** than the ~51% it delivers on Apple
+Silicon, for the identical flag on the identical JDK build. And as a
+sanity check: BC's numbers (which never
 touch this flag) stay flat regardless of it, while SunJCE-with-intrinsic-OFF
 (71.84µs avg) and BC (~72.6µs avg over the same runs) land within ~1% of
 each other — confirming JDK's *reference* Java implementation and BC's are

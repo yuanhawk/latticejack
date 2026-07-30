@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # B1 characterization harness (arm-hackathon-plan.md §3 Component B1): runs
-# latency/throughput/bytes-on-wire passes against either the classical
-# ("before") or hybrid PQC ("after") config, writing CSVs under
+# latency/throughput/bytes-on-wire passes against the classical ("before"),
+# hybrid PQC ("after"), or hybrid PQC with ML-KEM-768 routed through
+# mlkem-native's NEON FFM path ("after-native", see
+# src/main/java/com/latticejack/pqc/nativekem/) config, writing CSVs under
 # benchmarks/results/ for later before-vs-after (and, in Component B2,
 # naive-vs-tuned) comparison.
 #
@@ -9,7 +11,7 @@
 # server across passes, matching this repo's existing run-before.sh/
 # run-after.sh style, and keeping each pass's connection count exact.
 #
-# Usage: ./run-benchmark.sh {before|after} [iterations] [warmup] [concurrency]
+# Usage: ./run-benchmark.sh {before|after|after-native} [iterations] [warmup] [concurrency]
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -17,8 +19,8 @@ source ./scripts/require-jdk21.sh
 ./scripts/gen-classical-keys.sh
 
 CONFIG="${1:-}"
-if [ "$CONFIG" != "before" ] && [ "$CONFIG" != "after" ]; then
-  echo "usage: ./run-benchmark.sh {before|after} [iterations] [warmup] [concurrency]" >&2
+if [ "$CONFIG" != "before" ] && [ "$CONFIG" != "after" ] && [ "$CONFIG" != "after-native" ]; then
+  echo "usage: ./run-benchmark.sh {before|after|after-native} [iterations] [warmup] [concurrency]" >&2
   exit 1
 fi
 
@@ -50,6 +52,32 @@ if [ "$CONFIG" = "after" ]; then
   # contaminating timed measurements with logging overhead - see
   # docs/bouncycastle-pqc-notes.md.
   PQC_OPTS=(-Dlatticejack.tls.pqc=true)
+elif [ "$CONFIG" = "after-native" ]; then
+  # Same as "after" plus routing ML-KEM-768 through mlkem-native's NEON FFM
+  # path (see run-nativekem.sh / NativeMlkemProvider) - trace deliberately
+  # OFF here (unlike run-nativekem.sh, which turns it on to positively
+  # verify the native path fired): per-handshake tracing would perturb the
+  # very timing numbers this script exists to measure, same reasoning as
+  # the "after" branch's logging note above. Only run-nativekem.sh, whose
+  # whole purpose is verification rather than clean measurement, needs
+  # trace on.
+  case "$(uname -s)" in
+    Darwin) LIB_NAME="libmlkem768ffm.dylib" ;;
+    *)      LIB_NAME="libmlkem768ffm.so" ;;
+  esac
+  NATIVEKEM_LIB="$(pwd)/vendor/mlkem-native/$LIB_NAME"
+  if [ ! -f "$NATIVEKEM_LIB" ]; then
+    echo "ERROR: $NATIVEKEM_LIB not found." >&2
+    echo "  Build it per benchmarks/mlkem-ffm-bench/README.md 'How the shared" >&2
+    echo "  library was built' (mlkem-native's own build only produces .a" >&2
+    echo "  static archives - a shared library must be linked from that)." >&2
+    exit 1
+  fi
+  PQC_OPTS=(
+    -Dlatticejack.tls.pqc=true
+    -Dlatticejack.tls.nativekem=true
+    -Dlatticejack.nativekem.lib="$NATIVEKEM_LIB"
+  )
 fi
 
 COMMON_OPTS=(
@@ -68,7 +96,12 @@ run_pass() {
   echo ""
   echo "=== [$CONFIG] $mode pass ($connections connections) ==="
 
-  java "${COMMON_OPTS[@]}" \
+  # --enable-preview: not used by the before/after/after-native benchmark
+  # code paths themselves (only src/main/java/com/latticejack/pqc/nativekem/
+  # uses java.lang.foreign), but required at runtime for EVERY class in the
+  # module once pom.xml's compiler plugin turns it on module-wide - see
+  # pom.xml's maven-compiler-plugin comment.
+  java --enable-preview "${COMMON_OPTS[@]}" \
     -Djavax.net.ssl.keyStore="$KEYS_DIR/server.jks" \
     -Djavax.net.ssl.keyStorePassword="$PASS" \
     -Dlatticejack.bench.connections="$connections" \
@@ -81,7 +114,7 @@ run_pass() {
     csv_opt=(-Dlatticejack.bench.csv="$csv")
   fi
 
-  java "${COMMON_OPTS[@]}" \
+  java --enable-preview "${COMMON_OPTS[@]}" \
     -Djavax.net.ssl.keyStore="$KEYS_DIR/client.jks" \
     -Djavax.net.ssl.keyStorePassword="$PASS" \
     -Dlatticejack.bench.mode="$mode" \

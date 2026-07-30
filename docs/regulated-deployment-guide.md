@@ -52,8 +52,8 @@ levers 4 and 5 exist because they target the two costs that actually
 measured large: JVM startup (lever 4, ~7.9x, a JVM-tooling change with
 zero crypto-provider risk) and, for the minority of deployments where
 per-handshake crypto cost genuinely dominates, a narrow native crypto
-backend behind a single provider class (lever 5's still-open `KEMSpi`
-integration) — not a system rewrite either way.**
+backend behind a single provider class (lever 5's `KEMSpi` integration,
+now prototyped — see Tier 2 below) — not a system rewrite either way.**
 
 ## Specific implementation recommendation
 
@@ -70,15 +70,49 @@ this project measured (~7.9x cold-start), and the lowest-risk one to ship.
 **2. Long-running, high-connection-churn servers** (a payment gateway or
 market-data feed terminating thousands of mTLS connections/sec, where
 per-handshake crypto cost compounds over the service's lifetime past
-lever 4/5's ~14,050-handshake crossover point): the concrete next step is
-finishing what `benchmarks/mlkem-ffm-bench/README.md` explicitly flags as
-not yet done — implementing a real `javax.crypto.KEMSpi` (or the BC
--internal equivalent) backed by `mlkem-native` via the FFM binding already
-built here, registered as a standard JCA provider. This keeps the change
-boundary to **one new provider class**, auditable in isolation, with
-everything else in the service unchanged Java. Not a rewrite of the
-service - a provider swap, the same shape of change Component A already
-demonstrated works.
+lever 4/5's ~14,050-handshake crossover point): **this has now been
+prototyped and measured in this project, not just recommended in the
+abstract.** `src/main/java/com/latticejack/pqc/nativekem/` implements a
+real `javax.crypto.KEMSpi` backed by `mlkem-native` via the FFM binding,
+registered as a standard JCA provider and wired into `ProviderBootstrap`/
+BCJSSE behind an opt-in flag (`-Dlatticejack.tls.nativekem=true`) — the
+change boundary is exactly the **one new provider class** this
+recommendation describes, with everything else in the service unchanged
+Java, verified positively (not just "handshake succeeded") on real
+Linux/aarch64 hardware. Full-handshake timing there shows p50 parity with
+plain BC (expected — ML-KEM compute is microseconds against an ~89ms
+handshake dominated by JVM/TLS overhead) and a modest tail-latency/
+throughput edge (~2-4% lower p95/p99, ~7% higher throughput). **Read this
+before anything else in this section: the specific build measured above
+is not deployable, for a reason that matters more than performance.** The
+shared library it links (`vendor/mlkem-native/libmlkem768ffm.{dylib,so}`)
+uses mlkem-native's own test-only `notrandombytes()` stub — a
+deterministic, fixed-seed generator, not a CSPRNG — because neither the
+native keypair-generation nor encapsulation call takes a randomness
+argument in this build. Every key and every encapsulation this specific
+prototype produces is predictable, not secret. For a regulated financial
+or government deployment this is disqualifying on its own, independent of
+any FIPS/CMVP status: an attacker who knows this stub is in use does not
+need to break ML-KEM at all. Fixing it is a scoped, understood change —
+relink against a real CSPRNG's `randombytes()`, or more cleanly, wire the
+library's already-exported `_derand` symbol variants
+(`PQCP_MLKEM_NATIVE_MLKEM768_keypair_derand`/`_enc_derand`) to the
+`SecureRandom` this package's SPIs already receive as a parameter and
+currently ignore — but it is not done in this prototype, and this
+document would be misleading a regulated reader if it didn't say so
+plainly and first. Flagged as the most significant finding by an
+independent Opus audit of this feature.
+
+**What else this prototype does not establish:** it has not been run
+under FIPS-constrained conditions (see the BC-FIPS caveat in the matrix
+below — this provider has only been tested against plain BC, not
+BC-FIPS), GraalVM native-image combined with this provider is untested,
+and the FFI-crossing cost isn't isolated inside a full handshake the way
+the standalone benchmark isolated it. Reproduce and read the caveats in
+full at `benchmarks/nativekem-e2e-bench/README.md` before treating this
+as anything beyond a working prototype whose RNG must be fixed before
+production use. Not a rewrite of the service - a provider swap, the same
+shape of change Component A already demonstrated works.
 
 **3. Genuinely latency-critical paths (sub-millisecond HFT, market
 -making):** even here, the recommendation is a narrow native crypto
@@ -88,6 +122,26 @@ rewrite — the FFM integration measured in lever 5 already gets within
 gets within 3.3% of it. The performance-critical unit is the KEM
 operation, not the surrounding service; isolate the native swap to that
 boundary specifically.
+
+**A natural objection: why not just wait for JDK 25's own built-in
+ML-KEM intrinsic (lever 3) to close this gap, instead of adding a native
+provider at all?** Two reasons, one about the JDK itself and one about
+this audience specifically. First, JDK 25 *is* a genuine LTS release
+(Oracle's LTS cadence is 8/11/17/21/25/29; JDK 25 shipped September 2025
+with Premier support into at least 2033) — but this project's own
+lever-3 measurement found its intrinsic only closes ~8.7% of the BC gap
+on real Arm64 hardware (`benchmarks/mlkem-microbench/README.md`), nowhere
+near lever 5's ~4x, so "wait for the JDK" doesn't solve the problem this
+tier addresses even once adopted. Second, and more relevant to *this*
+audience: regulated financial-sector Java shops do not adopt a new JDK on
+release day. Even a fast-adopted LTS (Java 21, released September 2023)
+reached only an estimated ~31% production adoption after roughly 18
+months industry-wide, and regulated shops specifically run longer
+validation cycles on top of that industry baseline. A realistic planning
+assumption for this audience is JDK 25 in production **years**, not
+months, after its release — meaning the JDK 21-compatible FFM/JCA-provider
+pattern in Tier 2 above is the practically relevant near-term option for
+this audience regardless of what JDK 25 eventually offers built in.
 
 ## Regulatory-context matrix: FIPS, FedRAMP, and what this project can and can't tell you
 

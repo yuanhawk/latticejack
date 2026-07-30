@@ -84,34 +84,47 @@ initially very promising-looking 88% down to the 1.8% reported above — most
 of what looked like a real resumption win was measurement artifact, not
 crypto.
 
-**What the fixed 1.8%/0.3% numbers most likely mean, honestly:**
-ECDSA P-256 + X25519 are cheap enough in software that skipping them via
-resumption barely moves the needle - other overhead (TCP connection setup,
-JVM/thread-pool dispatch, GC) dominates the handshake cost floor regardless
-of resumption, at least on this instance size. That's a coherent,
-defensible explanation for the classical result.
+**Correction (found by an independent Opus+Fable audit of this project's
+own claims): the paragraph below originally treated the classical result
+as confirmed-and-explained and only the PQC result as an open question.
+The committed evidence doesn't actually support that asymmetry.**
+`BenchmarkClient.java`'s own resumption-confirmation logic compares TLS
+session IDs between the two connections in each pair
+(`resumptionPairTimed`'s `outResumed[0] = ... Arrays.equals(firstSessionId,
+secondSessionId)`), and the harness itself already anticipated exactly
+this failure mode: if the confirmed-resumed rate is under 50%, it prints
+"resumed_attempt latency is not a reliable resumption-benefit number
+here." **Checking the actual committed CSVs
+(`before-resumption.csv`/`after-resumption.csv`) directly: `resumed=0` for
+all 200 rows in *both* files** - meaning the specific timed run that
+produced the 1.8%/0.3% table above had a 0% confirmed-resumption rate for
+classical too, the same reliability warning the code would print for PQC.
+The debug-log verification described below (BC's `FINEST` logging showing
+resumption-related log lines for classical) was a **separate, uncommitted
+run**, not the same timed run - so it shows the *mechanism* firing in some
+run, not that the specific measurement behind "1.8%" reflects genuine
+resumption rather than two full handshakes with the second landing
+marginally faster for unrelated reasons (JIT/OS-cache warmth between
+back-to-back connections). **Both the classical and PQC results in this
+section should be read as unconfirmed by the committed evidence, not just
+the PQC one** - extending, not replacing, the open-question treatment
+originally given only to PQC.
 
-**The PQC result (0.3%) is more troubling and NOT fully explained.**
-Verified via BC's own debug log (`java.util.logging` at `FINEST`, same
-method used elsewhere in this project to verify TLS group negotiation):
-the classical/SunJSSE path clearly logs `"Found resumable session.
-Preparing PSK message"` and `"Consuming NewSessionTicket message"` for
-every resumption attempt once bugs #2/#3 were fixed. **BCJSSE logs neither
-of those, or anything else resumption-related, at the same log level** —
-only the `enableSessionResumption=true` property default. This is
-consistent with resumption simply not engaging for the PQC/BCJSSE path at
-all (every "resumed attempt" actually being a second full ML-KEM
-handshake, which would fully explain a ~0% delta) - but it has **not**
-been root-caused to that level of confidence. Given this session already
-found and walked back one premature "BouncyCastle is broken" conclusion
-(see `docs/bouncycastle-pqc-notes.md` §3a item 3 — that one turned out to
-be a bug in this project's own test-certificate generation, not BC), this
-is deliberately reported as an open question rather than a claimed root
-cause. **Next step, if pursued:** trace BCJSSE's session-cache source
-(`~/.m2` sources jar, same method used for the earlier named-groups
+**What the fixed 1.8%/0.3% numbers most likely mean, honestly, given
+that correction:** either genuinely small (ECDSA P-256 + X25519 are cheap
+enough that skipping them barely moves the needle, and TCP/JVM/GC overhead
+dominates the floor regardless) - or neither side's resumption mechanism
+was confirmed to engage in the specific timed run, in which case both
+numbers reflect noise between two full handshakes rather than a measured
+resumption benefit at all. The data as committed cannot distinguish these
+two explanations. **Next step, if pursued:** rerun with debug logging
+enabled *during the same timed pass* (not a separate verification run) so
+resumption engagement and timing are measured together, and fix or relax
+the session-ID-equality detection heuristic if it's the one that's
+unreliable rather than resumption itself - trace BCJSSE's session-cache
+source (`~/.m2` sources jar, same method used for the earlier named-groups
 investigation) to see whether hybrid-group sessions are excluded from its
-resumption cache, or find the equivalent of BC's own resumption logging at
-a different log level/logger name than tried here.
+resumption cache either way.
 
 ## B2 lever 2: JVM tuning flags
 
@@ -149,16 +162,22 @@ repeatedly overstated real-hardware impact for this workload**.
 attributed the ~88ms to "crypto compute" dominating so completely that
 nothing else could matter. That's not literally supportable — even BC's
 slowest measured ML-KEM operations total ~190µs, three orders of magnitude
-below 88ms. **Since resolved** with real hardware-level CPU profiling
-(Arm Performix, `collect_java_stacks=true`, profiling the exact benchmark
-command that produces the 88ms number): ~73% of all CPU time is JVM
-overhead — `libjvm.so` (62.96%, mostly C2 JIT compiler passes) plus the
-bytecode interpreter running not-yet-compiled code (10.04%) — while all of
-BouncyCastle's code combined (TLS engine, ASN.1, ML-KEM, classical crypto)
-is only 5.55%. JIT compilation and JVM warmup, not crypto compute, is what
-this document's "crypto compute dominates" language was actually — if
-imprecisely — pointing at. Full profiling methodology and data:
-[benchmarks/arm-performix-profile/README.md](../../arm-performix-profile/README.md).*)
+below 88ms. A real CPU profile now exists (Arm Performix,
+`collect_java_stacks=true`, profiling the whole benchmark script) showing
+~73% of CPU time is JVM overhead (`libjvm.so` + interpreter) vs. ~5.55%
+BouncyCastle — but an independent audit of this project's own claims
+found that number, while real and committed, doesn't cleanly decompose
+the specific 88ms p50 the way an earlier version of this correction
+claimed: the profiled script includes a Maven build and several JVM cold
+starts, a CPU-sampling profiler can't see the ~94% of handshake wall-time
+that's off-CPU, and this document's own lever 2 result (C1-only JIT,
+within ~0.01% of baseline) is in tension with "JIT dominates the warm
+handshake." **What actually consumes the ~88ms remains an open question**
+— what's established is that neither ML-KEM math nor JVM tuning flags
+explain it, and a real (if methodologically limited) CPU profile points
+toward JVM/JIT machinery somewhere in this project's pipeline, without yet
+isolating where. Full profiling methodology, all caveats, and a suggested
+cleaner follow-up: [benchmarks/arm-performix-profile/README.md](../../arm-performix-profile/README.md).*)
 
 ## Reading all of this honestly
 
@@ -183,7 +202,10 @@ imprecisely — pointing at. Full profiling methodology and data:
   -microbench/README.md`) and `mlkem-native`'s NEON-optimized C
   implementation, which found a much larger ~4.3-4.6x gap on the same
   hardware — see `benchmarks/mlkem-native-bench/README.md`. What actually
-  explains the full ~88ms handshake cost is now resolved with real
-  hardware profiling data, not just corrected inference — see
-  `benchmarks/arm-performix-profile/README.md`: ~73% JVM/JIT-compiler
-  overhead, ~5.55% BouncyCastle (crypto + protocol combined).
+  explains the full ~88ms handshake cost remains an open question - a
+  real CPU profile exists now (~73% JVM/JIT-compiler overhead, ~5.55%
+  BouncyCastle across the whole benchmark script), a genuine, committed
+  data point, but methodologically too coarse to count as a resolution;
+  see `benchmarks/arm-performix-profile/README.md` for exactly what it
+  does and doesn't establish, and a cleaner follow-up method not yet
+  attempted.

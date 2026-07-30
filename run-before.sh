@@ -31,7 +31,11 @@ COMMON_OPTS=(
 
 echo "=== [before] classical TLS/mTLS on port $PORT ==="
 
-java "${COMMON_OPTS[@]}" \
+# --enable-preview: not used by this classical path itself, but required at
+# runtime for EVERY class in the module once pom.xml's compiler plugin turns
+# it on module-wide for src/main/java/com/latticejack/pqc/nativekem/'s
+# java.lang.foreign usage - see pom.xml's maven-compiler-plugin comment.
+java --enable-preview "${COMMON_OPTS[@]}" \
   -Djavax.net.ssl.keyStore="$KEYS_DIR/server.jks" \
   -Djavax.net.ssl.keyStorePassword="$PASS" \
   -cp target/classes com.latticejack.pqc.EchoTlsServer &
@@ -39,7 +43,7 @@ SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
 sleep 1
 
-java "${COMMON_OPTS[@]}" \
+java --enable-preview "${COMMON_OPTS[@]}" \
   -Djavax.net.ssl.keyStore="$KEYS_DIR/client.jks" \
   -Djavax.net.ssl.keyStorePassword="$PASS" \
   -cp target/classes com.latticejack.pqc.EchoTlsClient

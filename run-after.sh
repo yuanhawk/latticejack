@@ -52,14 +52,19 @@ cleanup() {
 }
 trap cleanup EXIT
 
-java "${COMMON_OPTS[@]}" \
+# --enable-preview: not used by this hybrid-KEX-only path itself, but
+# required at runtime for EVERY class in the module once pom.xml's compiler
+# plugin turns it on module-wide for src/main/java/com/latticejack/pqc/
+# nativekem/'s java.lang.foreign usage - see pom.xml's maven-compiler-plugin
+# comment.
+java --enable-preview "${COMMON_OPTS[@]}" \
   -Djavax.net.ssl.keyStore="$KEYS_DIR/server.jks" \
   -Djavax.net.ssl.keyStorePassword="$PASS" \
   -cp "$CP" com.latticejack.pqc.EchoTlsServer > "$SERVER_LOG" 2>&1 &
 SERVER_PID=$!
 sleep 1
 
-java "${COMMON_OPTS[@]}" \
+java --enable-preview "${COMMON_OPTS[@]}" \
   -Djavax.net.ssl.keyStore="$KEYS_DIR/client.jks" \
   -Djavax.net.ssl.keyStorePassword="$PASS" \
   -cp "$CP" com.latticejack.pqc.EchoTlsClient 2>&1 | tee "$CLIENT_LOG"

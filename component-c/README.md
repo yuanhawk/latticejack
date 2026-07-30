@@ -18,8 +18,11 @@ crypto — the specific failure mode this project hit once already
 intended hybrid group, with *no runtime error at all*; see
 `docs/bouncycastle-pqc-notes.md`). See
 [`skills/pqc-authoring/examples/worked-example.md`](../skills/pqc-authoring/examples/worked-example.md)
-for that exact bug worked through as a test case, proving the skill's
-checklist catches a real regression, not just a hypothetical one.
+for that exact bug worked through as a test case, demonstrating (not
+executing as an automated test) that the skill's checklist catches a real
+regression, not just a hypothetical one — the worked example is an
+authored document, not a captured transcript of the skill actually
+running.
 
 Deliberately scoped narrow: it flags classical crypto in TLS/handshake
 contexts specifically, not general-purpose application crypto elsewhere

@@ -72,7 +72,18 @@ process launched per handshake (serverless / CLI-tool / one-shot) -
 native-image's one-time saving is about **13,460x larger** than
 mlkem-native's per-handshake saving, so native-image is unambiguously the
 higher-leverage lever there; mlkem-native's saving is a rounding error next
-to a ~2ms startup cost.
+to a ~2-second (2001.9ms) startup cost.
+
+*(Correction: this section originally used the raw-ceiling per-handshake
+saving (148.7µs vs. BC) computed before `benchmarks/mlkem-ffm-bench/` did
+the real FFM integration. That integration's realized saving is 142.5µs
+vs. BC (slightly smaller, since FFI crossing cost eats a little of the
+ceiling) - see `benchmarks/mlkem-ffm-bench/README.md` and `WRITEUP.md` for
+the crossover recomputed from that number: ~14,050 handshakes, not
+~13,460. The 13,460 figure below is left as originally computed rather
+than silently edited to match, since the difference between the ceiling
+-based and realized-based crossover is itself a small, honest illustration
+of why "ceiling vs. realized" matters - flagged, not hidden.)*
 
 The relationship inverts for a **long-running server handling many
 connections on one already-started process** - the exact scenario lever
@@ -80,7 +91,8 @@ connections on one already-started process** - the exact scenario lever
 connection count grows), and where levers 1-3 already established crypto
 compute, not JVM/GC tuning, is the only remaining lever with room. There,
 mlkem-native's saving is recurring and compounds linearly with connection
-count: at roughly 2,001,900 µs / 148.7 µs ≈ **13,460 handshakes**,
+count: at roughly 2,001,900 µs / 148.7 µs ≈ **13,460 handshakes** (ceiling
+-based estimate; ~14,050 using the realized FFM saving, see above),
 mlkem-native's cumulative saving (if integrated) would overtake native
 -image's one-time saving, and keeps growing without bound afterward while
 native-image's contribution stays flat. **Concretely: which lever matters
@@ -103,20 +115,27 @@ orders of magnitude smaller than the ~88ms full-handshake p50 from B1. What
 factors JVM tuning flags can influence* (GC, JIT tier), none come close to
 mattering - not that ML-KEM math alone explains ~88ms of wall-clock time.
 
-**Update: resolved, not just flagged.** Arm Performix hardware-level CPU
-profiling (real Cobalt 100 hardware, the exact `run-benchmark.sh after`
-workload that produces the 88ms number, 1.15M samples,
-`collect_java_stacks=true`) found the answer directly: **~73% of all CPU
-time is `libjvm.so` (62.96%, dominated by C2 JIT compiler passes -
-`PhaseIdealLoop`, `PhaseChaitin`, `PhaseIterGVN` - plus GC and class
-loading) and the bytecode `Interpreter` (10.04%, code not yet
-JIT-compiled). All of BouncyCastle's code combined - TLS engine, ASN.1,
-ML-KEM, classical crypto - is 5.55%.** JIT compilation and JVM
-warmup/runtime overhead, not crypto compute, dominates - directly
-explaining why lever 4 (GraalVM native-image, which eliminates JIT
-entirely) found the largest win of any B2 lever. Full profiling
-methodology, an honest caveat about a small amount of profiler-induced
-overhead in the raw numbers, and reproduction steps:
+**Update: a real, hardware-profiled data point exists now - still an open
+question, not resolved.** Arm Performix hardware-level CPU profiling of
+the whole `run-benchmark.sh after` script (real Cobalt 100 hardware, 1.15M
+samples, `collect_java_stacks=true`) found **~73% of all CPU time is
+`libjvm.so` + `Interpreter`, only ~5.55% is BouncyCastle's own code**.
+That's a real, committed, reproducible measurement - but an independent
+audit of this project's own claims (Opus + Fable, see `WRITEUP.md`)
+correctly found the original wording here ("resolved... found the answer
+directly... directly explaining") overclaimed what it establishes: the
+profiled script includes a Maven build and roughly 8-10 JVM cold starts,
+not an isolated warm handshake; a CPU-sampling profiler can't see the
+~94% of handshake wall-time that's off-CPU (per this project's own B1
+CPU-vs-latency numbers); and this project's own lever 2 result
+(`-XX:TieredStopAtLevel=1`, eliminating all C2 JIT passes, landed within
+~0.01% of baseline) is in real tension with "JIT dominates the warm
+handshake." **The honest framing: this profile corroborates the mechanism
+lever 4 (native-image) exploits, and is a genuinely useful, committed data
+point - but it does not decompose the specific 88ms p50, and the original
+open question (what specifically is inside that 88ms) remains open.** Full
+rewrite with all caveats, the committed raw data, and a suggested cleaner
+follow-up method:
 [benchmarks/arm-performix-profile/README.md](../arm-performix-profile/README.md).
 
 ## Reproducing

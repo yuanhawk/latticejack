@@ -33,14 +33,19 @@ integration**: ~4.0x faster than BC and ~3.7x faster than JDK 25's own
 built-in ML-KEM, end-to-end through the FFM boundary, not just in isolation.
 
 This is now the largest *realized* (not ceiling-only) per-operation gap
-this project has measured - bigger than lever 3's JDK 25 intrinsic gain
-(~8.7%) and lever 6's exploratory Vector API result (~6.7%) by roughly two
-orders of magnitude, while lever 4 (GraalVM native-image, ~7.9x) remains
-the largest *overall* B2 finding, attacking a different cost entirely (see
+this project has measured - roughly 40-60x bigger than lever 3's JDK 25
+intrinsic gain (~8.7%) and lever 6's exploratory Vector API result (~6.7%),
+while lever 4 (GraalVM native-image, ~7.9x) remains the largest *overall*
+B2 finding, attacking a different cost entirely (see
 `benchmarks/mlkem-native-bench/README.md`'s lever-4-vs-lever-5 crossover
--point analysis, still accurate here: this integration doesn't change the
-"different costs, different deployment shapes" conclusion, it just confirms
-lever 5's number is real and not just a hypothetical ceiling).
+-point analysis - the *qualitative* "different costs, different deployment
+shapes" conclusion is unchanged, but the crossover point itself moves
+slightly, from ~13,460 handshakes (that analysis's original ceiling-based
+estimate) to ~14,050 (recomputed from this integration's realized saving,
+142.5µs vs. BC rather than the ceiling's 148.7µs) - this integration
+confirms lever 5's number is real and not just a hypothetical ceiling, and
+updates the crossover accordingly rather than leaving the ceiling-based
+figure standing uncorrected).
 
 ## What this is, and isn't
 

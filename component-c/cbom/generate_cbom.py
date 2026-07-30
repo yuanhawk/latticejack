@@ -146,7 +146,12 @@ def build_bom(config):
     else:
         raise ValueError(f"unknown config: {config}")
 
-    components = [app] + crypto_assets
+    # `app` describes the BOM's subject and lives only in metadata.component,
+    # per CycloneDX convention - it is NOT also listed in `components`
+    # (components is for constituent parts of the subject, not the subject
+    # itself). An earlier version of this generator listed it in both
+    # places with the same bom-ref, a duplicate-ref modeling issue an
+    # independent audit caught; fixed here rather than left standing.
     for c in crypto_assets:
         c.setdefault("bom-ref", f"{config}-{c['name']}")
 
@@ -163,7 +168,7 @@ def build_bom(config):
         "metadata": {
             "component": app,
         },
-        "components": components,
+        "components": crypto_assets,
         "dependencies": dependencies,
     }
 

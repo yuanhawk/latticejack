@@ -55,6 +55,25 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.13.0</version>
+        <configuration>
+          <!--
+            Required by src/main/java/com/latticejack/pqc/nativekem/ (the
+            opt-in native ML-KEM path, -Dlatticejack.tls.nativekem=true),
+            which uses java.lang.foreign, a JDK 21 PREVIEW API (finalized in
+            JDK 22). Maven's compiler plugin compiles all of src/main/java in
+            ONE javac invocation, so this marks EVERY class in the module as
+            a preview class, not just the new ones: it means every java
+            invocation project-wide now needs the enable preview runtime
+            flag too, including run-before.sh/run-after.sh/run-benchmark.sh,
+            which don't touch this code at all. Accepted, precedented cost
+            (see benchmarks/mlkem-ffm-bench, which already required this for
+            its own separate compile/run) - see those scripts for the
+            matching runtime flag.
+          -->
+          <compilerArgs>
+            <arg>--enable-preview</arg>
+          </compilerArgs>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
@@ -62,12 +81,25 @@
         <version>3.4.1</version>
         <configuration>
           <mainClass>${exec.mainClass}</mainClass>
+          <!-- Classes are now compiled as preview (see maven-compiler-plugin
+               above) - mvn exec:java would otherwise fail loudly with
+               "preview features not enabled" even though no run script
+               actually uses this goal today. -->
+          <options>
+            <option>--enable-preview</option>
+          </options>
         </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.3.1</version>
+        <configuration>
+          <!-- Same reason as exec-maven-plugin above: no test sources
+               reference preview APIs today, but the whole module's classes
+               are preview-flagged, so any future test would need this. -->
+          <argLine>--enable-preview</argLine>
+        </configuration>
       </plugin>
     </plugins>
   </build>
