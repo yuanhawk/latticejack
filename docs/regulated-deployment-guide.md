@@ -79,29 +79,36 @@ BCJSSE behind an opt-in flag (`-Dlatticejack.tls.nativekem=true`) — the
 change boundary is exactly the **one new provider class** this
 recommendation describes, with everything else in the service unchanged
 Java, verified positively (not just "handshake succeeded") on real
-Linux/aarch64 hardware. Full-handshake timing there shows p50 parity with
-plain BC (expected — ML-KEM compute is microseconds against an ~89ms
-handshake dominated by JVM/TLS overhead) and a modest tail-latency/
-throughput edge (~2-4% lower p95/p99, ~7% higher throughput). **Read this
-before anything else in this section: the specific build measured above
-is not deployable, for a reason that matters more than performance.** The
-shared library it links (`vendor/mlkem-native/libmlkem768ffm.{dylib,so}`)
-uses mlkem-native's own test-only `notrandombytes()` stub — a
-deterministic, fixed-seed generator, not a CSPRNG — because neither the
-native keypair-generation nor encapsulation call takes a randomness
-argument in this build. Every key and every encapsulation this specific
-prototype produces is predictable, not secret. For a regulated financial
-or government deployment this is disqualifying on its own, independent of
-any FIPS/CMVP status: an attacker who knows this stub is in use does not
-need to break ML-KEM at all. Fixing it is a scoped, understood change —
-relink against a real CSPRNG's `randombytes()`, or more cleanly, wire the
-library's already-exported `_derand` symbol variants
-(`PQCP_MLKEM_NATIVE_MLKEM768_keypair_derand`/`_enc_derand`) to the
-`SecureRandom` this package's SPIs already receive as a parameter and
-currently ignore — but it is not done in this prototype, and this
-document would be misleading a regulated reader if it didn't say so
-plainly and first. Flagged as the most significant finding by an
-independent Opus audit of this feature.
+Linux/aarch64 hardware. **Read this before anything else in this section:
+an independent Opus audit's most significant finding on this feature —
+that the shared library it links
+(`vendor/mlkem-native/libmlkem768ffm.{dylib,so}`) used mlkem-native's own
+test-only `notrandombytes()` stub, a deterministic, fixed-seed generator
+not a CSPRNG, making every key and encapsulation predictable rather than
+secret — has been fixed, not just flagged.** The code now calls only the
+library's `_derand` entry points
+(`PQCP_MLKEM_NATIVE_MLKEM768_keypair_derand`/`_enc_derand`), which take
+caller-supplied coins and never invoke the library's internal
+`randombytes()` at all — so which RNG stub happens to be linked into the
+shared library is no longer relevant to correctness. Real coins now come
+from the `java.security.SecureRandom` the JCA SPI contract already hands
+this package's classes (previously received and silently discarded).
+Verified directly, not just argued: generating repeated keypairs, and
+generating keypairs in separate fresh JVM processes, now produce
+different keys — before this fix, every run produced byte-identical
+output. **The fix's own performance cost was re-measured on real
+hardware, not left as "expected small"**: post-fix, full-handshake
+timing against a fresh same-session BC baseline runs ~0.7-1.5% higher
+(slower) and throughput ~2.6% lower than plain BC — the modest native
+edge originally reported here (pre-fix: ~2-4% lower p95/p99, ~7% higher
+throughput) did not survive paying for real randomness, though the
+post-fix delta is close enough to this VM's own ~2-3% run-to-run noise
+that "no clear net edge either way" is the honest read. **This does not
+by itself clear the bar for a regulated deployment** - a working,
+now-performance-characterized CSPRNG-backed prototype is a meaningfully
+different, smaller gap than a disqualifying deterministic-key bug, but
+FIPS/CMVP status (below) and formal review remain open before this is
+production-ready.
 
 **What else this prototype does not establish:** it has not been run
 under FIPS-constrained conditions (see the BC-FIPS caveat in the matrix
@@ -110,9 +117,9 @@ BC-FIPS), GraalVM native-image combined with this provider is untested,
 and the FFI-crossing cost isn't isolated inside a full handshake the way
 the standalone benchmark isolated it. Reproduce and read the caveats in
 full at `benchmarks/nativekem-e2e-bench/README.md` before treating this
-as anything beyond a working prototype whose RNG must be fixed before
-production use. Not a rewrite of the service - a provider swap, the same
-shape of change Component A already demonstrated works.
+as anything beyond a working, CSPRNG-backed prototype - not yet a
+production-cleared one. Not a rewrite of the service - a provider swap,
+the same shape of change Component A already demonstrated works.
 
 **3. Genuinely latency-critical paths (sub-millisecond HFT, market
 -making):** even here, the recommendation is a narrow native crypto

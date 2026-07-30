@@ -69,7 +69,14 @@ public final class NativeMlkemKemSpi implements KEMSpi {
                     "expected a NativeMlkemPublicKey (produced by NativeMlkemKeyPairGeneratorSpi or "
                             + "NativeMlkemKeyFactorySpi), got: " + publicKey);
         }
-        return new Encapsulator(pub);
+        // Real randomness for encapsulation coins - see NativeMlkem768's
+        // Javadoc for why this must be a genuine SecureRandom. JEP 452's
+        // KEM.newEncapsulator(PublicKey) (no explicit SecureRandom) is
+        // documented to supply a default SecureRandom to the SPI rather
+        // than passing null, but fall back to a fresh one defensively
+        // rather than NPE if some caller ever does pass null.
+        SecureRandom effectiveRandom = secureRandom != null ? secureRandom : new SecureRandom();
+        return new Encapsulator(pub, effectiveRandom);
     }
 
     @Override
@@ -89,14 +96,18 @@ public final class NativeMlkemKemSpi implements KEMSpi {
 
     private static final class Encapsulator implements EncapsulatorSpi {
         private final NativeMlkemPublicKey publicKey;
+        private final SecureRandom random;
 
-        Encapsulator(NativeMlkemPublicKey publicKey) {
+        Encapsulator(NativeMlkemPublicKey publicKey, SecureRandom random) {
             this.publicKey = publicKey;
+            this.random = random;
         }
 
         @Override
         public KEM.Encapsulated engineEncapsulate(int from, int to, String algorithm) {
-            NativeMlkem768.Encapsulation enc = NativeMlkem768.encapsulate(publicKey.getRawKey());
+            byte[] coins = new byte[NativeMlkem768.ENC_COINS_BYTES];
+            random.nextBytes(coins);
+            NativeMlkem768.Encapsulation enc = NativeMlkem768.encapsulate(publicKey.getRawKey(), coins);
             byte[] secretSlice = Arrays.copyOfRange(enc.sharedSecret, from, to);
             SecretKey key = new SecretKeySpec(secretSlice, algorithm != null ? algorithm : "Generic");
             return new KEM.Encapsulated(key, enc.ciphertext, null);

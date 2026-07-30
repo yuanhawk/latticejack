@@ -43,33 +43,49 @@ import org.bouncycastle.jcajce.spec.MLKEMParameterSpec;
  */
 public final class NativeMlkemKeyPairGeneratorSpi extends KeyPairGeneratorSpi {
 
+    // Real randomness for keygen coins - see NativeMlkem768's Javadoc for
+    // why this must be a genuine SecureRandom, not the library's own
+    // internal (test-only, deterministic) randombytes(). Defaults to a
+    // fresh SecureRandom if generateKeyPair() is ever called without
+    // initialize() having run first (shouldn't happen given KemUtil's own
+    // call sequence, but matches standard JCA SPI convention of not NPEing
+    // on a skipped initialize()).
+    private SecureRandom random = new SecureRandom();
+
     public NativeMlkemKeyPairGeneratorSpi() {}
 
     @Override
     public void initialize(int keysize, SecureRandom random) {
         // Neither KemUtil codepath calls this overload (both always supply
-        // an AlgorithmParameterSpec via the other initialize()) — nothing
-        // to do; generateKeyPair() below is unconditionally ML-KEM-768
-        // regardless.
+        // an AlgorithmParameterSpec via the other initialize()) - but still
+        // honor the SecureRandom if given one, for defensiveness.
+        if (random != null) {
+            this.random = random;
+        }
     }
 
     @Override
     public void initialize(AlgorithmParameterSpec params, SecureRandom random)
             throws InvalidAlgorithmParameterException {
         if (params instanceof NamedParameterSpec named && "ML-KEM-768".equalsIgnoreCase(named.getName())) {
-            return;
+            // fall through to the random assignment below
+        } else if (params instanceof MLKEMParameterSpec spec && "ML-KEM-768".equalsIgnoreCase(spec.getName())) {
+            // fall through to the random assignment below
+        } else {
+            throw new InvalidAlgorithmParameterException(
+                    "NativeMlkemKeyPairGeneratorSpi only supports NamedParameterSpec/MLKEMParameterSpec for "
+                            + "ML-KEM-768, got: " + params);
         }
-        if (params instanceof MLKEMParameterSpec spec && "ML-KEM-768".equalsIgnoreCase(spec.getName())) {
-            return;
+        if (random != null) {
+            this.random = random;
         }
-        throw new InvalidAlgorithmParameterException(
-                "NativeMlkemKeyPairGeneratorSpi only supports NamedParameterSpec/MLKEMParameterSpec for "
-                        + "ML-KEM-768, got: " + params);
     }
 
     @Override
     public KeyPair generateKeyPair() {
-        NativeMlkem768.KeyPair kp = NativeMlkem768.keypair();
+        byte[] coins = new byte[NativeMlkem768.KEYPAIR_COINS_BYTES];
+        random.nextBytes(coins);
+        NativeMlkem768.KeyPair kp = NativeMlkem768.keypair(coins);
         return new KeyPair(new NativeMlkemPublicKey(kp.publicKey), new NativeMlkemPrivateKey(kp.secretKey));
     }
 }

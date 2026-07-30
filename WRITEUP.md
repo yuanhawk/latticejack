@@ -334,27 +334,38 @@ names on this project's pinned JDK 21 than its base sources suggest;
 BC's own `MLKEMSpi` was silently handling the crypto until this was fixed
 and caught by a positive trace-marker check, not just "the handshake
 succeeded"). Verified on real Linux/aarch64, not just macOS: the
-correctness gate passes, and 3-run-averaged full-handshake timing shows
-p50 parity with BC (expected - ML-KEM compute is microseconds against an
-~89ms handshake dominated by JVM/TLS overhead) and a modest tail-latency/
-throughput edge (~2-4% lower p95/p99, ~7% higher throughput). **This is not
-a deployable build, for a reason more important than any of that timing
-detail:** the shipped shared library links mlkem-native's test-only,
-deterministic `notrandombytes()` stub, not a CSPRNG - every key and
-encapsulation this path produces right now is predictable, not secret,
-because neither native call takes a randomness argument at all. That was
-an acceptable, disclosed shortcut when this same stub only backed a
-standalone throughput benchmark whose keys were never used for anything;
-it is a real security problem now that this path derives an actual TLS
-session secret, flagged as the most significant finding in an independent
-Opus audit of this feature. What's still open: GraalVM native-image
-combined with this provider is untested, the FFI-crossing cost isn't
-isolated inside a full handshake the way the standalone FFM benchmark
-isolated it, and - the load-bearing one - no CSPRNG wiring exists yet
-(the library exports `_derand` symbol variants that would let Java's own
-`SecureRandom` supply the randomness instead of a relink; not done here).
-Full mechanism, the bug, the real-hardware numbers, the RNG caveat in
-full, and the complete "what's not done" list:
+correctness gate passes. **An independent Opus audit found the most
+significant problem with this feature: the shipped shared library links
+mlkem-native's test-only, deterministic `notrandombytes()` stub, not a
+CSPRNG, and the code originally called entry points that take no
+randomness argument at all - every key and encapsulation that path
+produced was predictable, not secret, deriving a real TLS session secret
+from non-secret material.** That's now fixed, not just documented: the
+code only calls the library's `_derand` entry points, which take
+caller-supplied coins and never touch the library's internal
+`randombytes()` at all, fed by the `java.security.SecureRandom` the JCA
+SPI contract already supplies (previously received, silently discarded -
+now used). Verified directly: repeated keygens, and keygens across
+separate fresh JVM processes, now produce different keys - before the
+fix, all output was byte-identical. **Re-measured on real hardware after
+the fix, in the same session as a fresh BC baseline for direct
+comparability, 3-run-averaged: the modest native tail-latency/throughput
+edge this section originally reported (~2-4% lower p95/p99, ~7% higher
+throughput) is gone.** Post-fix, p50/p95/mean run ~0.7-1.5% *higher*
+(slower) than BC and throughput ~2.6% lower, with p99 essentially even -
+close enough to this VM's own run-to-run noise (2-3% within a single
+config) that the honest read is "no longer a clear net edge either way,"
+not "the fix made it slower." The `SecureRandom` call and coin-marshalling
+across the FFM boundary are real new cost the pre-fix numbers never
+paid, and evidently large enough to erase a small edge this close to
+parity already - exactly the kind of thing this project's "measure,
+don't assume" discipline exists to catch. Full pre-fix vs. post-fix
+tables: `benchmarks/nativekem-e2e-bench/README.md`. What's still open:
+GraalVM native-image combined with this provider is untested, and the
+FFI-crossing cost isn't isolated inside a full handshake the way the
+standalone FFM benchmark isolated it. Full mechanism, the bug, the
+real-hardware numbers, the RNG fix in full, and the complete "what's not
+done" list:
 [benchmarks/nativekem-e2e-bench/README.md](benchmarks/nativekem-e2e-bench/README.md).
 Full mechanism, the wall-clock-vs-cycle-counter methodology note
 from the ceiling measurement, and the shared-library build details:
@@ -597,18 +608,23 @@ real handshake route ML-KEM-768 through mlkem-native's FFM path behind an
 opt-in flag, positively verified (trace marker, not just "handshake
 succeeded") on real Linux/aarch64, with a real bug found and fixed along
 the way (BC's multi-release `bctls` jar resolves different JCA service
-names on JDK 17+ than its base sources suggest). Full-handshake timing on
-real hardware shows p50 parity with BC (expected, given ML-KEM compute is
-microseconds against an ~89ms handshake) and a modest tail-latency/
-throughput edge. **What's still not done, even for lever 5 - most
-importantly, not deployable as shipped:** the shared library backing this
-path links a deterministic test-only RNG stub, not a CSPRNG, so its key
-material is predictable rather than secret - an accepted shortcut when
-the same stub only backed a standalone benchmark, a real problem now that
-it derives an actual handshake's session secret (flagged by an
-independent Opus audit as the most significant finding on this feature;
-full detail and the CSPRNG-wiring path not yet taken below). Also open:
-GraalVM native-image combined with this provider is untested; the FFI-crossing
+names on JDK 17+ than its base sources suggest). **An independent Opus
+audit's most significant finding on this feature - that the shared
+library backing this path links a deterministic test-only RNG stub, so
+its key material was predictable rather than secret - is now fixed**, not
+just disclosed: the code calls the library's `_derand` entry points with
+real `SecureRandom` coins, never the internal randombytes()-calling ones,
+verified by observing different keys across repeated calls and fresh
+processes (previously byte-identical). Full-handshake timing on real
+hardware, re-measured post-fix against a fresh same-session BC baseline:
+p50/p95/mean run ~0.7-1.5% higher (slower) than BC, throughput ~2.6%
+lower, p99 essentially even - the modest native tail-latency/throughput
+edge originally reported here was measured pre-fix and has not survived
+paying for real randomness, though the delta is small enough, relative to
+this VM's own ~2-3% run-to-run noise, to read as "no longer a clear net
+edge either way" rather than a confident regression. **What's still not
+done, even for lever 5:** GraalVM native-image combined with this
+provider is untested; the FFI-crossing
 cost isn't isolated inside a full handshake the way the standalone FFM
 benchmark isolated it (a handshake's ~89ms of JVM/TLS overhead swamps any
 attempt to attribute a delta specifically to FFI crossing versus VM
@@ -814,12 +830,22 @@ preferred. Summary:
 - **Most B2 findings are reproducible from committed raw data, not
   cherry-picked** - see the `.txt`/`.csv` files in
   `benchmarks/samples/azure-cobalt100-2vcpu/`, `benchmarks/mlkem-microbench/`,
-  and each of the lever 4-8 benchmark directories, not just the summarized
-  tables above. **Exception, disclosed rather than glossed over**: the Arm
-  Performix CPU profile (`benchmarks/arm-performix-profile/`) has no raw
-  data committed - it was a single profiling run, and the underlying
-  per-sample CSV data (from `~/.local/share/apxd/runs/<id>/`) was not
-  copied into the repo the way every other benchmark's raw output was.
+  and most of the lever 4-8 benchmark directories, not just the summarized
+  tables above. This includes the Arm Performix CPU profile
+  (`benchmarks/arm-performix-profile/`): an earlier version of this
+  sentence said its raw data wasn't committed - that was corrected in the
+  same audit pass that rewrote this section's honesty (see "Independent
+  audit" above); the per-sample CSV
+  (`functions-capture-periodic_sampling.csv.gz`) and a reproducible
+  `analyze.py` are committed and regenerate every headline percentage
+  exactly. **The actual current exception, found by a later independent
+  audit of this document's own internal consistency**: lever 5's
+  end-to-end handshake numbers
+  (`benchmarks/nativekem-e2e-bench/README.md`) are reported as per-run
+  tables inline in that README, not as committed per-iteration CSVs the
+  way levers 4/6/7/8 are - the underlying `benchmarks/results/*.csv` files
+  are gitignored by design (see that file's own comment: a dev-machine or
+  single-session run isn't meant to stand in as "the" official number).
   Local-only signals mentioned for comparison (Apple Silicon numbers for
   levers 4, 6, and the JDK 25/26 single-run checks) are similarly not
   backed by committed raw files, since they were explicitly local smoke

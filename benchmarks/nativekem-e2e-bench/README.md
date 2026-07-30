@@ -13,33 +13,32 @@ check - route ML-KEM-768 keygen/encapsulate/decapsulate through
 mlkem-native's NEON C implementation via FFM, instead of BC's own pure-Java
 `MLKEMSpi`. Default (flag unset) behavior is unchanged.
 
-> **Before reading any further: this specific build is not deployable
-> as-is, for a reason more important than any performance caveat below.**
-> The shipped `vendor/mlkem-native/libmlkem768ffm.{dylib,so}` links
-> mlkem-native's own `notrandombytes()` **TEST double** - a deterministic,
-> fixed-seed generator, not a CSPRNG (its own upstream header: *"You MUST
-> NOT use this implementation outside of testing"*). Neither the native
-> `keypair()` nor `enc()` call takes a randomness argument, so every key
-> and every encapsulation this path produces is **fully deterministic and
-> predictable** - the same on every run, on every machine. That was an
-> accepted, disclosed shortcut when this same stub only backed a
-> throughput benchmark whose keys were never used for anything
-> (`benchmarks/mlkem-ffm-bench/README.md`). It is a materially different,
-> security-relevant problem now that this path derives the actual TLS
-> session secret in a real handshake: an attacker who knows this stub is
-> in use does not need to break ML-KEM at all. This caveat was flagged by
-> an independent Opus audit as the most significant finding in this
-> feature's review - stated here plainly rather than left implicit in the
-> Java class Javadoc (`NativeMlkem768.java`) it was previously disclosed
-> in only. **"Positively verified" below means the wiring and negotiation
-> are real and correct; it does not mean this build's key material is
-> safe to use for anything beyond that verification.** A real deployment
-> would need `libmlkem768ffm` relinked against a real CSPRNG's
-> `randombytes()`, or - more cleanly - the shipped `_derand` symbol
-> variants (`PQCP_MLKEM_NATIVE_MLKEM768_keypair_derand`/`_enc_derand`,
-> confirmed present in the built library) wired to Java's own
-> `SecureRandom`, which this package's SPIs already receive as a
-> parameter and currently ignore. Neither is done here.
+> **Update: the RNG issue this callout originally warned about is fixed.**
+> An independent Opus audit found the most significant problem with an
+> earlier version of this feature: the shipped
+> `vendor/mlkem-native/libmlkem768ffm.{dylib,so}` links mlkem-native's own
+> `notrandombytes()` **TEST double** - a deterministic, fixed-seed
+> generator, not a CSPRNG - and the plain `keypair()`/`enc()` entry points
+> this code originally called take no randomness argument at all, so every
+> key and every encapsulation were fully deterministic and predictable,
+> deriving a real TLS session secret from non-secret material. That's
+> fixed now, not just documented as a known gap: `NativeMlkem768.java`
+> only binds and calls the `_derand` entry points
+> (`PQCP_MLKEM_NATIVE_MLKEM768_keypair_derand`/`_enc_derand`), which take
+> caller-supplied coins and never call the library's internal
+> `randombytes()` at all - so which stub the shared library happens to
+> link is now irrelevant. Real coins come from the `java.security.SecureRandom`
+> the JCA/JCE SPI contract already hands `NativeMlkemKeyPairGeneratorSpi`
+> and `NativeMlkemKemSpi` (previously received and silently discarded, now
+> used). **Verified directly, not just argued**: generating two keypairs
+> back to back, and generating a keypair in two separate fresh JVM
+> processes, all produce different public keys - before this fix, all four
+> would have been byte-identical. The plain (non-derand) entry points and
+> their method handles were removed from `NativeMlkem768.java` entirely,
+> not just left unused alongside the fixed path, so there is no remaining
+> way to accidentally call back into the deterministic behavior. "Positively
+> verified" below now means what it should: both the wiring/negotiation
+> *and* the key material are real.
 
 ## Mechanism, briefly
 
@@ -142,11 +141,62 @@ target hardware, not just a dev laptop.
 
 Both configs run the *same* full handshake path (`EchoTlsServer`/
 `EchoTlsClient`, hybrid X25519MLKEM768, TLS 1.3 over loopback) - the only
-difference is which ML-KEM-768 implementation executes underneath. All 6
-runs are fresh in this same session, on the same VM instance, not reused
-from an earlier/different run.
+difference is which ML-KEM-768 implementation executes underneath, and
+(for `after-native`, below) whether it's the pre-fix deterministic-RNG
+build or the post-fix real-`SecureRandom` build.
 
-### Per-run raw numbers
+### Post-fix (real SecureRandom via `_derand`) - current numbers
+
+Measured after the CSPRNG fix above, on the same VM, in one session; the
+`after` baseline was also re-run fresh in the same session rather than
+reusing the pre-fix numbers below, so the comparison is apples-to-apples
+against the *current* code on *both* sides.
+
+| Config | Run | p50 (ms) | p95 (ms) | p99 (ms) | mean (ms) | Throughput (handshakes/sec) |
+|---|---|---|---|---|---|---|
+| after | 1 | 88.800 | 95.878 | 101.195 | 86.044 | 77.1 |
+| after | 2 | 89.047 | 96.266 | 99.744 | 86.911 | 74.9 |
+| after | 3 | 89.021 | 95.795 | 103.094 | 85.354 | 74.7 |
+| after-native | 1 | 89.937 | 97.189 | 101.937 | 87.802 | 72.9 |
+| after-native | 2 | 89.186 | 97.631 | 100.827 | 87.239 | 73.3 |
+| after-native | 3 | 89.523 | 96.629 | 99.949 | 87.015 | 74.6 |
+
+Averaged across the 3 runs (each run's own p50 is already that run's
+median, per this project's established 3-run methodology):
+
+| Metric | after (BC pure-Java ML-KEM) | after-native (mlkem-native NEON, real SecureRandom) | Delta |
+|---|---|---|---|
+| p50 latency | 88.956 ms | 89.549 ms | +0.67% (native higher) |
+| p95 latency | 95.980 ms | 97.150 ms | +1.22% (native higher) |
+| p99 latency | 101.344 ms | 100.904 ms | −0.43% (~noise) |
+| mean latency | 86.103 ms | 87.352 ms | +1.45% (native higher) |
+| Throughput | 75.567 h/s | 73.600 h/s | −2.60% (native lower) |
+
+**The honest finding: fixing the RNG erased the modest edge the pre-fix
+numbers showed, and the reason is exactly what was predicted before this
+was re-measured** (see "What's not done" below, pre-fix version) - real
+`SecureRandom.nextBytes()` plus marshalling the coins across the FFM
+boundary as an additional argument is new cost the pre-fix numbers never
+paid, and it was large enough, relative to a full-handshake baseline this
+close to parity already, to flip a small apparent native advantage into a
+small (and by these run-to-run swings, arguably noise-level) native
+disadvantage at p50/p95/throughput. p99 lands basically even. **This is
+not a regression to be explained away - it's the same "measure, don't
+assume" discipline that produced the original ~4x per-operation number
+catching up with a cost that number never included.** For context on
+scale: run-to-run variation *within* a single config here is itself
+2-3% (e.g. `after`'s own throughput ranges 74.7-77.1 h/s across its 3
+runs) - roughly the same size as the between-config deltas above, so
+these should be read as "no longer a clear net edge either way at the
+full-handshake level," not as a confidently-measured slowdown.
+
+### Pre-fix (deterministic RNG) numbers - superseded, kept for the record
+
+The table below is what this section originally reported, before the
+CSPRNG fix above. Left here rather than deleted, both because silently
+replacing numbers without a trace would violate this project's own
+disclosure practice, and because the *change* between the two tables is
+itself the interesting finding (previous section).
 
 | Config | Run | p50 (ms) | p95 (ms) | p99 (ms) | mean (ms) | Throughput (handshakes/sec) |
 |---|---|---|---|---|---|---|
@@ -157,33 +207,21 @@ from an earlier/different run.
 | after-native | 2 | 89.204 | 94.690 | 97.934 | 84.797 | 75.9 |
 | after-native | 3 | 88.777 | 96.509 | 101.041 | 84.947 | 77.5 |
 
-### Averaged across the 3 runs (each run's own p50 is already that run's median, per this project's established 3-run methodology)
-
-| Metric | after (BC pure-Java ML-KEM) | after-native (mlkem-native NEON via FFM) | Delta |
-|---|---|---|---|
-| p50 latency | 88.996 ms | 88.995 ms | ~0% (noise) |
-| p95 latency | 98.036 ms | 95.803 ms | −2.3% (native lower) |
-| p99 latency | 104.494 ms | 100.181 ms | −4.1% (native lower) |
-| Throughput | 71.133 h/s | 75.967 h/s | +6.8% (native higher) |
-
-**Read this the way `mlkem-ffm-bench` and the Arm Performix profile already
-established, not as a surprise:** full end-to-end handshake latency here
-(~89ms) is dominated by JVM/TLS/connection-setup overhead on a shared
-2-vCPU VM, not by ML-KEM-768 compute itself, which `mlkem-ffm-bench`
-measured at ~47µs total per operation set via the same FFM path - roughly
-three orders of magnitude below the handshake floor. **p50 parity between
-the two configs is exactly what that prior finding predicts, not a null
-result to explain away.** The native path's benefit is visible only where
-it should be: the tail (p95/p99, where a slower op occasionally lands on
-the critical path under load) and aggregate throughput under concurrency,
-both modest (single-digit percent) and consistent with the operation-level
-gap being a small fraction of a much larger handshake. The `after` run's
-run-2 throughput pass shows a visible outlier (58.2 h/s vs. ~77 h/s
+Averaged: p50 88.996ms vs 88.995ms (~0%), p95 98.036ms vs 95.803ms
+(native −2.3%), p99 104.494ms vs 100.181ms (native −4.1%), throughput
+71.133 vs 75.967 h/s (native +6.8%). The `after` run's run-2 throughput
+pass in this pre-fix table shows a visible outlier (58.2 h/s vs. ~77 h/s
 elsewhere) - consistent with shared-VM scheduling noise on a 2-vCPU
-instance, reported as measured rather than discarded, matching this
-project's practice elsewhere (e.g. the session-resumption findings in
-`benchmarks/samples/azure-cobalt100-2vcpu/README.md`) of not silently
-dropping an inconvenient data point.
+instance, reported as measured rather than discarded at the time,
+matching this project's practice elsewhere (e.g. the session-resumption
+findings in `benchmarks/samples/azure-cobalt100-2vcpu/README.md`) of not
+silently dropping an inconvenient data point. Both tables' full-handshake
+latency (~89ms) being dominated by JVM/TLS/connection-setup overhead
+rather than ML-KEM-768 compute itself (`mlkem-ffm-bench` measured ~47µs
+total per operation set via the same FFM path - roughly three orders of
+magnitude below the handshake floor) still holds and explains why *either*
+table's deltas are small relative to the whole handshake - it's the sign
+and size of the small delta that moved once real randomness was paid for.
 
 **This does not update the ~14,050-handshake lever-4/lever-5 crossover**
 computed in `benchmarks/mlkem-ffm-bench/README.md`: that estimate was
@@ -196,12 +234,33 @@ one to reason about that crossover from.
 
 ## What's not done - stated plainly
 
-- **The RNG the callout at the top of this document describes.** Repeated
-  here because it's the most important item on this list, not because it
-  fits the "not done" framing better than "must fix before any real use":
-  this build's key material is deterministic, not secret. Everything else
-  below is a rigor/completeness gap; this one is a correctness-for-purpose
-  gap.
+- **The RNG gap the top-of-document callout used to describe is now
+  fixed** - see that callout for the detail. Kept as a crossed-off first
+  item here rather than deleted, since a reader arriving at this section
+  first (skipping the top) deserves the same information: this was the
+  single correctness-for-purpose gap in this feature, not a
+  rigor/completeness gap like everything below, and it no longer applies.
+  Verified both for correctness (differing keypairs across repeated calls
+  and fresh processes, where before the fix all output was
+  byte-identical) and now re-measured for performance on real hardware
+  (below) - the "expected small" guess about the fix's own cost was
+  checked, not left assumed, and turned out to matter more than
+  "small": see the post-fix results table above.
+- **The CSPRNG fix's own performance cost has now been measured, and it
+  matters.** Real coins via `SecureRandom.nextBytes()` plus marshalling
+  them across the FFM boundary as an additional argument is new cost that
+  wasn't in the original ~4.0x/~3.7x per-operation numbers or the original
+  full-handshake table - those were measured against the deterministic-stub
+  path. Re-measured on the same VM in the same session as the fix: the
+  small full-handshake edge the pre-fix table showed (native ~2-4% lower
+  p95/p99, ~7% higher throughput) is gone post-fix, replaced by a
+  comparably small edge in the *other* direction at p50/p95/throughput
+  (see the post-fix table above) - close enough to this VM's own
+  run-to-run noise that "no longer a clear net edge either way" is the
+  honest read, not "the fix made it slower." The per-operation ceiling
+  (~4.0x/~3.7x) is unaffected - that's a separate, isolated measurement
+  (`mlkem-ffm-bench`) this full-handshake number was never meant to
+  re-derive.
 - **FFI-crossing overhead is not isolated the way `mlkem-ffm-bench`
   isolated it for the standalone case.** That benchmark could compare
   "raw C ceiling" against "via FFM" directly because it called the three

@@ -30,6 +30,12 @@ import org.bouncycastle.jcajce.spec.KEMGenerateSpec;
 public final class NativeMlkemKeyGeneratorSpi extends KeyGeneratorSpi {
 
     private AlgorithmParameterSpec pending;
+    // Real randomness for encapsulation coins, same reasoning as
+    // NativeMlkemKemSpi (the live path on this project's pinned JDK 21) -
+    // this class is dead code there, but kept correct rather than left
+    // with a known gap for whichever pre-JDK-17 runtime would actually
+    // exercise it.
+    private SecureRandom random = new SecureRandom();
 
     public NativeMlkemKeyGeneratorSpi() {}
 
@@ -47,6 +53,9 @@ public final class NativeMlkemKeyGeneratorSpi extends KeyGeneratorSpi {
                     "NativeMlkemKeyGeneratorSpi only supports KEMGenerateSpec/KEMExtractSpec, got: " + params);
         }
         this.pending = params;
+        if (random != null) {
+            this.random = random;
+        }
     }
 
     @Override
@@ -69,7 +78,9 @@ public final class NativeMlkemKeyGeneratorSpi extends KeyGeneratorSpi {
                         "expected a NativeMlkemPublicKey (produced by NativeMlkemKeyPairGeneratorSpi or "
                                 + "NativeMlkemKeyFactorySpi), got: " + generate.getPublicKey());
             }
-            NativeMlkem768.Encapsulation enc = NativeMlkem768.encapsulate(pub.getRawKey());
+            byte[] coins = new byte[NativeMlkem768.ENC_COINS_BYTES];
+            random.nextBytes(coins);
+            NativeMlkem768.Encapsulation enc = NativeMlkem768.encapsulate(pub.getRawKey(), coins);
             SecretKey shared = new SecretKeySpec(enc.sharedSecret, "DEF");
             return new SecretKeyWithEncapsulation(shared, enc.ciphertext);
         }
