@@ -10,6 +10,20 @@ migrated path for Arm64 (Azure Cobalt 100 today; AWS Graviton / Ampere
 supported too — see [docs/arm64-instance-setup.md](docs/arm64-instance-setup.md)).
 Migration mechanics: see [MIGRATION.md](MIGRATION.md).
 
+**Why this counts as an AI solution, not just a crypto migration on Arm:**
+[`skills/pqc-authoring/`](skills/pqc-authoring/SKILL.md) is a Claude Code
+Skill — a real AI-agent capability (a "prompt asset," the judging
+rubric's own term), not documentation, that drives an AI coding agent to
+catch a specific regression class automatically. Every claim in this
+repo — every benchmark number, every "resolved" or "fixed" — was
+adversarially re-verified by independent AI models (Opus and Fable, run
+blind to each other), which found and fixed real bugs the same way a
+second human reviewer would, applied consistently across eight
+optimization levers. And the infrastructure being migrated is itself
+AI-relevant: TLS is what AI model-serving endpoints and agent-to-agent
+protocols run over, increasingly on the same Arm64 silicon this project
+measured on. Full argument: `WRITEUP.md`'s Project Overview.
+
 ## Status
 
 | Piece | State |

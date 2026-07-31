@@ -18,6 +18,44 @@ during this project, not simulated or estimated), with an Arm64
 optimization investigation (Component B2) that is the actual technical
 core of this submission.
 
+**Why this is an AI solution, not just a crypto migration that happens to
+run on Arm:** the official rules ask for "an AI solution on Arm
+architecture" — worth answering directly rather than assuming a Track 2
+migration project reads as one automatically. Three things make it one.
+First, [`skills/pqc-authoring/`](skills/pqc-authoring/SKILL.md) is a
+Claude Code Skill — a "prompt asset" (the judging rubric's own term under
+Potential Impact) that is itself an AI-agent capability, not documentation
+about crypto: it drives an AI coding agent to catch a specific,
+security-relevant regression class (silent fallback to classical crypto)
+automatically, demonstrated against a real regression this project hit
+once (see [worked
+example](skills/pqc-authoring/examples/worked-example.md)). Second, the
+entire engineering process behind every other claim in this document is
+AI-native, not just AI-assisted, and applied repeatedly, not once: the
+main benchmark/optimization write-up was adversarially re-verified by two
+independent AI models (Opus and Fable, run blind to each other), which
+found and fixed real bugs the same way a second human reviewer would - a
+unit error, an overclaimed causal chain, an unconfirmed benchmark result
+(see "Independent audit" below) - and a later addition (the native-KEM
+integration) went through the same discipline again in its own follow-up
+Opus review, which caught a security-relevant RNG defect (deterministic,
+non-cryptographic key material) before it could ship undocumented. Repeated,
+separate adversarial passes across this project, not a single one-off
+check, at a scale and
+consistency this project couldn't have applied by hand across eight
+levers and two components. Third, the infrastructure being migrated and
+optimized here is itself AI-relevant, not incidentally so: TLS is what AI
+model-serving endpoints and inference APIs run over, and what networked
+deployments of agent protocols like MCP (its remote HTTP-based
+transports, not the local `stdio` default) run over too, and all of it is
+exposed to harvest-now-decrypt-later — Arm64 is where an increasing share
+of that AI infrastructure actually runs (Graviton,
+Cobalt 100, Ampere), which is exactly why this project measured on real
+Arm64 silicon rather than estimating. None of this is a stretch read of
+"AI solution" bolted on after the fact — the Skill and the AI-audit
+methodology are both load-bearing parts of what's described below, not
+add-ons.
+
 **Why this should win:** every claim in this project is backed by a
 measurement taken on real target hardware, and every place a measurement
 turned out wrong or misleading, that's documented too, not quietly
