@@ -12,27 +12,30 @@ them on demand and stream what they print to a browser, live, with nothing
 paraphrased — the frontend's verdict panel only ever renders the literal
 `VERIFIED:` / `VERIFICATION FAILED:` lines those scripts already print.
 
-## Current state: built and locally tested; **not yet deployed**
+## Current state: built; VM side verified on real Azure hardware; Cloudflare side not yet deployed
 
 Both halves of this feature are code-complete:
 
 - **`demo/run-demo.sh`** (this directory) — the VM-side wrapper. Starts
   `llama-server`, builds the project once, runs the four demo scripts in
-  order, and streams progress as JSON events over HTTPS.
+  order, and streams progress as JSON events over HTTPS. **This half has
+  now been run end-to-end on a real Azure Cobalt 100 VM** — see "What's
+  actually been verified, and how" below. The one part of it still
+  untested is the Azure Run Command dispatch mechanism itself (this
+  script was invoked directly over SSH for verification, not launched via
+  `az vm run-command`), which requires a live Worker to exercise for real.
 - **`demo/worker/`** — a Cloudflare Worker (Durable Object + cron) that
   receives those events, runs the state machine (idle → starting → running
   → deallocating → done), enforces rate limits, and serves the frontend a
   judge actually watches. See [`demo/worker/README.md`](worker/README.md)
   for its architecture, HTTP API surface, and the ingest wire contract in
   full — that document is the source of truth for both halves, not
-  re-explained here.
+  re-explained here. **This half has not been exercised against real
+  Cloudflare infrastructure** — no Cloudflare account exists in the
+  environment it was built in.
 
-**Neither half has been exercised against real Azure or Cloudflare
-infrastructure.** No Azure subscription, service principal, or Cloudflare
-account exists in the environment either half was built in — that's not
-an oversight, it's a hard boundary an automated agent can't cross. Getting
-this from "code-complete" to "actually live" requires a human with real
-credentials to work through
+Getting the Cloudflare half from "code-complete" to "actually live"
+requires a human with real credentials to work through
 **[`demo/OWNER_SETUP.md`](OWNER_SETUP.md)** — the concrete, ordered
 checklist for the Azure custom-role/service-principal setup, VM
 preparation, and Cloudflare account/secrets/DNS work, plus what to test
