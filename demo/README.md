@@ -94,6 +94,49 @@ immediately after the `source` line (see the comment at that line in
 `run-demo.sh` for the full explanation); re-verified against all four
 paths above after the fix.
 
+**A second real bug was found and fixed doing owner setup by hand**, not
+just by reading the checklist: `OWNER_SETUP.md`'s original §2.6 (and
+`wrangler.toml`'s default `DEMO_VM_SCRIPT_PATH`) said to deploy
+`run-demo.sh` as a standalone copy at `/opt/latticejack-demo/run-demo.sh`
+— but the script derives its own repo root as `"$(dirname "$0")/.."` to
+`cd` there before running `./run-before.sh` etc., so a bare copy with no
+checkout above it would have every stage fail immediately (`REPO_ROOT`
+resolving to `/opt`, which has none of those scripts). Fixed in both
+`OWNER_SETUP.md` and `wrangler.toml`'s default: the deployed path is now
+the script's real location *inside* the pinned checkout
+(`/opt/latticejack-demo-src/demo/run-demo.sh`), not a copy elsewhere.
+Also added: `run-demo.sh` now sources a fixed `/etc/latticejack-demo.env`
+file at startup if present (a no-op, unchanged-behavior fallback if it
+isn't — confirmed against the local mock-sink tests above, none of which
+create that file) — needed because Azure Run Command invokes the script
+directly with no login shell in between, so `~/.bashrc`/`/etc/environment`
+never reach it.
+
+**Then run for real, on the actual Azure Cobalt 100 VM** (not a mock/local
+substitute): a fresh, pinned-commit checkout at `/opt/latticejack-demo-src`
+(the repo is public now, so a plain HTTPS clone works, no deploy key
+needed), `libmlkem768ffm.so` rebuilt against it, `run-nativekem.sh`
+re-verified passing on that fresh checkout, KleidiAI engagement
+independently re-confirmed on this exact hardware (`nm` symbols, and a
+manual `llama-server --verbose` run — which also surfaced and resolved a
+false alarm: llama-server logs a dry-run sizing pass showing `0.00 MiB`
+for every buffer *before* the real `mmap` load pass that shows the actual
+`504.01 MiB` — `run-demo.sh`'s own verification grep already correctly
+uses `tail -1` to read the real pass, not the dry-run; a naive first-match
+grep would have false-negatived here). Then `run-demo.sh` itself was
+invoked directly with a minimal, Run-Command-*like* environment (`env -i`
+with only `PATH`/`HOME`/`INGEST_URL` set — everything else sourced from
+`/etc/latticejack-demo.env`, exactly as a real deployment would) against a
+mock ingest sink running on the VM itself. **All four stages passed**,
+including a real, complete `ai` stage run: `handshake_ms=299.8`,
+`request_to_response_ms=2973.5`, `ratio=0.101` (~9.9x — consistent with
+the ~9.4x average already on record in
+[`benchmarks/ai-inference-pqc/README.md`](../benchmarks/ai-inference-pqc/README.md)),
+with the real KleidiAI verification event text confirmed correct
+(`CPU_KLEIDIAI model buffer size =   504.01 MiB`, not a placeholder or
+false positive). VM deallocated and confirmed afterward, per this
+project's standing cost-control policy.
+
 **`demo/worker`** was run locally via `wrangler dev` (Miniflare's local
 Durable Object/KV simulation) with placeholder `.dev.vars`, exercised over
 real HTTP with `curl`: static asset serving, `/api/status`, `/api/start`
@@ -118,14 +161,20 @@ Stated plainly, not rounded up to "done":
   placeholder-credential *failure* responses during local `wrangler dev`
   testing (real 404s from AAD, handled gracefully, no crash) — but never
   against a real subscription.
-- **The Run Command `systemd-run`/`setsid` dispatch has never been
-  exercised against a real Azure guest agent.** This is called out
-  explicitly, in both `src/azure.ts`'s own comment and
-  `OWNER_SETUP.md` §4, as the single highest-risk untested detail in the
-  whole design — it exists to avoid a specific known failure mode (a
-  plain `nohup ... & disown` spawn getting silently reaped when the Run
-  Command's own top-level script returns), but whether the guard actually
-  works has only been reasoned about, never observed.
+- **The Run Command `systemd-run`/`setsid` *dispatch mechanism itself* has
+  never been exercised against a real Azure guest agent.** Still the
+  single highest-risk untested detail in the whole design (`src/azure.ts`'s
+  own comment, `OWNER_SETUP.md` §4) — the guard exists to avoid a specific
+  known failure mode (a plain `nohup ... & disown` spawn getting silently
+  reaped when the Run Command's own top-level script returns), but whether
+  it actually works has only been reasoned about, never observed. What
+  *has* now been verified (see above): `run-demo.sh` itself, once
+  launched, runs correctly end to end on the real VM with a
+  Run-Command-*like* minimal environment (`env -i` plus only the two
+  positional args and `INGEST_URL`) — so if the first live Run Command
+  dispatch fails, `OWNER_SETUP.md` §4's own advice holds: suspect the
+  *launch*, not this script's internal logic, which is the part now
+  actually proven on this hardware.
 - **The DO's alarm has never fired on a real 30–90s+ timer.** Miniflare
   doesn't auto-fire Durable Object alarms without manually advancing
   simulated time, which wasn't set up. The alarm's decision logic
@@ -142,19 +191,18 @@ Stated plainly, not rounded up to "done":
   in a browser.** Only the server-side `siteverify` call was exercised,
   against Cloudflare's documented test credentials — never the actual
   client-side widget on the actual frontend HTML.
-- **`run-demo.sh`'s own `llama-server`-startup code path is not fully
-  exercised.** No GGUF model was downloaded in the environment
-  `run-demo.sh` was built and tested in, so the "start `llama-server`,
+- **Update: `run-demo.sh`'s own `llama-server`-startup code path is now
+  fully exercised — resolved, not just a smaller remaining gap.** At the
+  time this was first written, no GGUF model was available in the
+  environment `run-demo.sh` was built in, so the "start `llama-server`,
   wait for `/health`, grep the verbose log for KleidiAI engagement"
-  sequence was verified only via (a) the "not configured, skip cleanly"
-  path and (b) an opportunistic real success against a `llama-server`
-  that happened to already be running locally for an unrelated reason —
-  not via this script's own code actually launching a fresh
-  `llama-server` process itself with `LLAMA_SERVER_BIN`/`LLAMA_MODEL_PATH`
-  set. This matches what the work was scoped to accept going in, but it's
-  still a real, specific gap between "tested" and "will work identically
-  on the target VM" — `OWNER_SETUP.md` §2.5 asks the owner to close this
-  gap by hand, once, before the first live demo.
+  sequence was only verified via the "not configured, skip cleanly" path
+  and an opportunistic pre-existing `llama-server`. Since then, on the
+  real Azure VM (see above), this script's own code was confirmed
+  actually launching a fresh `llama-server` process itself with
+  `LLAMA_SERVER_BIN`/`LLAMA_MODEL_PATH` read from `/etc/latticejack-demo.env`,
+  waiting for `/health`, and correctly grepping the real KleidiAI
+  engagement signal out of its own verbose log.
 
 None of the above blocks getting this deployed — they're exactly the set
 of things that categorically cannot be verified without real Azure/

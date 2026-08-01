@@ -194,40 +194,62 @@ this, not re-provisioned each time.
    but you obviously want the AI stage actually working for a live demo,
    so don't skip this.
 
-6. **Deploy `demo/run-demo.sh` to its expected location:**
+6. **Do NOT copy `run-demo.sh` to a standalone location — use it in place,
+   inside the pinned checkout from step 2.** An earlier version of this
+   checklist (and of `wrangler.toml`'s default) said to `cp` the script to
+   a bare `/opt/latticejack-demo/run-demo.sh` with nothing above it — that
+   is wrong and was caught by actually hand-deploying this: `run-demo.sh`
+   derives its own repo root as `"$(dirname "$0")/.."` so it can `cd`
+   there and run `./run-before.sh` etc. relative to it. Deployed as a
+   standalone copy outside any checkout, that derivation resolves to the
+   copy's parent directory (e.g. `/opt`), which has none of those scripts,
+   and every stage fails immediately. The fix: point the Worker straight
+   at the script's real location inside the step-2 checkout.
    ```bash
-   sudo mkdir -p /opt/latticejack-demo
-   sudo cp /opt/latticejack-demo-src/demo/run-demo.sh /opt/latticejack-demo/run-demo.sh
-   sudo chmod +x /opt/latticejack-demo/run-demo.sh
+   sudo chmod +x /opt/latticejack-demo-src/demo/run-demo.sh
    ```
-   This exact path (`/opt/latticejack-demo/run-demo.sh`) must match the
-   Worker's `DEMO_VM_SCRIPT_PATH` variable in `demo/worker/wrangler.toml`
-   — they're set independently on two different systems, so a mismatch
-   here fails silently until you actually run a session (the Run Command
-   dispatch would invoke a path that doesn't exist on the VM). Confirm
-   both sides say the same string, not just that each looks reasonable in
-   isolation.
+   `demo/worker/wrangler.toml`'s `DEMO_VM_SCRIPT_PATH` already defaults to
+   `/opt/latticejack-demo-src/demo/run-demo.sh` to match — if you pinned a
+   different checkout path in step 2, update both sides to agree, and
+   confirm by reading the file, not by assuming each side "looks
+   reasonable" in isolation (that's exactly how the original bug shipped).
 
-   Also set `INGEST_URL` in the same environment `run-demo.sh` executes
-   in — this is what `run-demo.sh` posts every event to. It's not baked
-   into the script; it must be an environment variable already present
-   when the Run Command dispatch invokes the script (`run-demo.sh`
-   exits early with a clear error if it's unset). Point it at your
-   deployed Worker's `/api/ingest` endpoint, e.g.
-   `https://demo.itinerario.io/api/ingest` — see §3 below for getting that
-   domain live first.
+   **Persisting `run-demo.sh`'s environment variables across a Run Command
+   invocation.** The Worker's Run Command dispatch invokes this script
+   directly (`systemd-run ... -- .../run-demo.sh SESSION_ID SESSION_TOKEN`)
+   with no login shell in between, so `~/.bashrc`/`/etc/environment` (which
+   only apply to interactive/PAM-initiated sessions) won't reach it.
+   `run-demo.sh` sources a fixed file, `/etc/latticejack-demo.env`, at
+   startup if it exists (harmless no-op if it doesn't — confirmed by the
+   local mock-sink tests, which don't create this file). Create it once:
+   ```bash
+   sudo tee /etc/latticejack-demo.env > /dev/null <<'EOF'
+   INGEST_URL=https://demo.itinerario.io/api/ingest   # set once §3's domain is live - see below
+   LATTICEJACK_LLAMA_URL=http://127.0.0.1:8090
+   LLAMA_SERVER_BIN=/opt/latticejack-demo-src/component-ai/llama.cpp/build/bin/llama-server
+   LLAMA_MODEL_PATH=/opt/latticejack-demo-src/component-ai/models/Llama-3.2-1B-Instruct-Q4_0.gguf
+   LLAMA_CONTEXT_SIZE=4096
+   EOF
+   sudo chmod 644 /etc/latticejack-demo.env
+   ```
+   `INGEST_URL` specifically can't be filled in for real until §3 gives you
+   a live Worker domain — leave it as the placeholder above (or omit the
+   line entirely) until then; `run-demo.sh` exits early with a clear error
+   if it's unset or empty when a real session actually tries to run, which
+   is the correct, honest failure mode rather than silently posting
+   nowhere.
 
-7. **Confirm outbound HTTPS from the VM to the Worker's domain is actually
-   reachable** — this is the one connection the whole live-streaming
-   design depends on (the Worker cannot reach into the VM; all data flows
-   VM → Worker via `run-demo.sh`'s outbound POSTs). Test from the VM
-   itself, not from your own machine:
+   **Confirm outbound HTTPS from the VM to the Worker's domain is actually
+   reachable** — this is the one connection the whole live-streaming design
+   depends on (the Worker cannot reach into the VM; all data flows VM →
+   Worker via `run-demo.sh`'s outbound POSTs). Test from the VM itself,
+   once §3 is live:
    ```bash
    curl -sS -o /dev/null -w "%{http_code}\n" https://<your-worker-domain>/api/status
    ```
    A `200` (or any HTTP response at all) confirms the network path is
-   open; a connection failure here means check the VM's NSG/outbound
-   rules before touching anything else.
+   open; a connection failure here means check the VM's NSG/outbound rules
+   before touching anything else.
 
 ---
 

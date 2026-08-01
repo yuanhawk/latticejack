@@ -83,9 +83,19 @@ DEMO_ALARM_INTERVAL_SECONDS = "45"
 DEMO_HARD_CAP_SECONDS = "720"
 DEMO_SILENCE_TIMEOUT_SECONDS = "180"
 
-# Path on the VM the Run Command dispatch invokes (see demo/run-demo.sh,
-# built by a parallel task - this is the wrapper's installed location).
-DEMO_VM_SCRIPT_PATH = "/opt/latticejack-demo/run-demo.sh"
+# Path on the VM the Run Command dispatch invokes (see demo/run-demo.sh).
+# MUST be the script's location WITHIN the pinned repo checkout, not a
+# standalone copy elsewhere: run-demo.sh derives REPO_ROOT as
+# "$(dirname "$0")/.." (so it can cd there and run ./run-before.sh etc.
+# relative to it) - if this path pointed at a bare copy outside any repo
+# checkout (e.g. a flat /opt/latticejack-demo/run-demo.sh with no repo
+# above it), REPO_ROOT would resolve to that copy's parent directory,
+# which has no run-before.sh/run-after.sh/etc. and every stage would fail
+# immediately. Found by hand-deploying this during owner setup - an
+# earlier version of this default and of OWNER_SETUP.md's own deployment
+# instructions both had this bug (a separate "cp to /opt/latticejack-demo/"
+# step), fixed in both places together. See demo/OWNER_SETUP.md §2.6.
+DEMO_VM_SCRIPT_PATH = "/opt/latticejack-demo-src/demo/run-demo.sh"
 
 # ---------------------------------------------------------------------------
 # Owner TODO before real deployment:

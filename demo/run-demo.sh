@@ -128,6 +128,23 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
+# Azure Run Command invokes this script directly (systemd-run ... -- .../
+# run-demo.sh SESSION_ID SESSION_TOKEN) with no login shell in between, so
+# ~/.bashrc / /etc/environment (PAM/interactive-session-only) never reach
+# it - the config variables below (INGEST_URL, LATTICEJACK_LLAMA_URL,
+# LLAMA_SERVER_BIN, LLAMA_MODEL_PATH, LLAMA_CONTEXT_SIZE) need somewhere
+# else to persist. Source a fixed, well-known file if present - a no-op
+# (and unchanged behavior) if it doesn't exist, which is exactly the case
+# in every local/mock-sink test of this script so far, and is why this
+# was safe to add without re-verifying those tests. See
+# demo/OWNER_SETUP.md §2.6 for how this file is created on the real VM.
+if [ -f /etc/latticejack-demo.env ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source /etc/latticejack-demo.env
+  set +a
+fi
+
 SESSION_ID="${1:-}"
 SESSION_TOKEN="${2:-}"
 if [ -z "$SESSION_ID" ] || [ -z "$SESSION_TOKEN" ]; then
