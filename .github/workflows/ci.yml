@@ -1,10 +1,20 @@
 name: CI
 
+# Disabled from automatic triggers (push/pull_request) now that this repo is
+# public. The self-hosted-runner leg below (this project's own Azure VM,
+# see docs/arm64-instance-setup.md) is exactly the configuration GitHub
+# warns against on public repos: for `pull_request`, Actions runs the
+# workflow file FROM the incoming PR, not the base branch's version - so
+# any external contributor could submit a PR that edits this file to run
+# arbitrary code on that self-hosted runner (real infrastructure, real
+# Azure credentials reachable from it). workflow_dispatch-only means CI
+# only ever runs when someone with write access to this repo triggers it
+# manually (Actions tab / `gh workflow run ci.yml`) - no public attack
+# surface, self-hosted leg included. Re-enable `push`/`pull_request` only
+# if the self-hosted matrix entry below is removed first, or restricted to
+# `push` (requires write access) rather than `pull_request`.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch: {}
 
 jobs:
   build-and-verify:
