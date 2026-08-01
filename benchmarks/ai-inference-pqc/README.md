@@ -219,17 +219,19 @@ values.
   **the Azure Cobalt 100 target's 3.8GB RAM is tight for LLM inference +
   JVM + build tooling running concurrently**, and the reduced context
   size is a real constraint on the measurement, not a free choice.
-- **A known, disclosed cosmetic bug in the tooling's own output.**
-  `run-ai.sh`'s printed timing label (and `PqcAiTlsClient.java`'s
-  matching string) still reads `LOCAL PROTOTYPE TIMING (Mac laptop, NOT
-  the Azure Cobalt 100 headline number)` even when run on the Azure VM —
-  leftover text from the phase-1 Mac prototype that wasn't updated for
-  VM reuse. The numbers above **are** real Azure Cobalt 100 measurements
-  (the SSH session that produced them was independently confirmed to be
-  `aarch64` via `uname -m`); only the printed label is wrong. Flagged
-  here, not fixed in the session that took these measurements — a
-  follow-up one-line edit to that Javadoc/print string, not a
-  correctness issue with the data itself.
+- **Update: the cosmetic label bug this section originally flagged is
+  fixed.** `run-ai.sh`'s printed timing label (and `PqcAiTlsClient.java`'s
+  matching string) used to read `LOCAL PROTOTYPE TIMING (Mac laptop, NOT
+  the Azure Cobalt 100 headline number)` unconditionally - leftover text
+  from the phase-1 Mac prototype that was still printing on the Azure VM
+  run that produced the numbers above. Found by an independent audit that
+  fact-checked this project's own demo-video script against the real
+  tooling output. Both now read the actual platform from
+  `os.name`/`os.arch` at runtime instead of asserting a specific machine.
+  The numbers above were always real Azure Cobalt 100 measurements (the
+  SSH session that produced them was independently confirmed `aarch64` via
+  `uname -m`) - only the printed label was ever wrong, and it no longer
+  is.
 
 ## What this does not establish
 

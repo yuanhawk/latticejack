@@ -111,14 +111,25 @@ silent fallback to secp256r1.
 if the backend takes too long to start on camera) — let the real model
 reply and the verification lines both sit on screen for a beat each.
 
-**What appears (verified, this is the actual real-hardware output):**
+**What appears** (verified against the actual print order and bracket
+label in `PqcAiTlsClient.java`/`run-ai.sh` — the label is `[ai-pqc-kex]`,
+not `[ai-client]`, and the model-reply/timing lines print *before*
+run-ai.sh's own two VERIFIED checks, not after; this is real run 1's
+output from the committed 3-run table in
+`benchmarks/ai-inference-pqc/README.md`, not an averaged/composite
+number — expect the exact ratio to vary run to run, 9.1x-9.8x across the
+three real runs on file, ~9.4x average):
 ```
-VERIFIED: HelloRetryRequest observed (2 ClientHellos) - consistent
-with X25519MLKEM768 (the first-preference group) being negotiated
-[ai-client] ai-client: model replied " A lattice is a mathematical
+[ai-pqc-kex] ai-client: model replied " A lattice is a mathematical
 concept used in cryptography..."
-[ai-client]   handshake / inference ratio = 0.107  (i.e. handshake cost
-is 9.4x smaller than the AI workload it fronts)
+[ai-pqc-kex]   handshake / inference ratio = 0.110  (i.e. handshake cost
+is 9.1x smaller than the AI workload it fronts)
+
+VERIFIED: client received a real model reply through the encrypted channel.
+
+VERIFIED: HelloRetryRequest observed (2 ClientHellos) - consistent
+with X25519MLKEM768 (the first-preference group) being negotiated, not a
+silent fallback to secp256r1.
 ```
 
 **Narration:**
