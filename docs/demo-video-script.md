@@ -6,14 +6,24 @@ directly: each beat names the exact screen content and the exact command
 to run, using data and behavior already verified elsewhere in this repo —
 nothing here should require improvising a new number on camera.
 
+**Revised after the AI inference workload landed** (`benchmarks/ai-inference-pqc/`)
+— the original version of this script predated that work and didn't
+mention it at all. Every audit run against this project since has agreed
+it's the single strongest, newest piece of evidence (it's what actually
+answers "is this an AI solution," not just argues it), so it now has the
+best slot in the video, not a footnote.
+
 Recommended capture setup: terminal recording (asciinema, or plain screen
 capture) on the actual Arm64 target — either the Azure Cobalt 100 VM
 (`az vm start` first, `az vm deallocate` after — see
 `docs/arm64-instance-setup.md`) or Apple Silicon locally if the VM isn't
 up; note on camera which one it is, since the real-hardware claim is part
 of the pitch. A simple slide deck (even plain Keynote/Google Slides) for
-the two chart beats is fine — the SVGs in `docs/charts/` can be dropped in
-directly.
+the chart beat is fine — the SVGs in `docs/charts/` can be dropped in
+directly. The AI-workload beat needs `run-ai.sh` already working on
+whichever machine you record on (llama-server built with KleidiAI and
+running — see `component-ai/README.md`); don't try to build that live on
+camera, it takes too long.
 
 ---
 
@@ -30,7 +40,7 @@ directly.
 
 ---
 
-## 0:15–0:40 — It's real, not simulated (terminal)
+## 0:15–0:35 — It's real, not simulated (terminal)
 
 **On screen:** terminal, this exact sequence, on the real target hardware:
 
@@ -54,94 +64,116 @@ silent fallback to secp256r1.
 > "Classical TLS, then hybrid post-quantum TLS — both running live, both
 > self-verifying. That second line matters: the script doesn't just check
 > the handshake completed, it checks the post-quantum group actually
-> negotiated, not a silent fallback to classical. A working handshake that
-> quietly downgrades is worse than one that fails loudly — this project
-> found and fixed exactly that bug once already."
+> negotiated, not a silent fallback to classical."
 
 ---
 
-## 0:40–1:15 — What it costs, and what closes the gap (charts)
+## 0:35–1:05 — What it costs, and what closes the gap (chart)
 
-**On screen:** `docs/charts/b1-latency.svg`, then `docs/charts/b2-levers.svg`
-(drop both into a slide, or `open` them full-screen if recording a
-terminal-only demo).
+**On screen:** `docs/charts/b1-latency.svg`, then `docs/charts/b2-levers.svg`.
 
 **Narration:**
 > "Going hybrid nearly doubles handshake latency on real hardware — 45 to
 > 89 milliseconds at the median. So we measured eight different ways to
 > claw that back, on the same real Arm64 silicon, not a laptop. Two came
-> back null — session resumption, JVM tuning flags — reported as findings,
-> not hidden. Three gave modest wins. And two gave real ones: mlkem-native's
-> hand-tuned NEON assembly, four times faster per operation; GraalVM
-> native-image, eliminating JVM startup entirely, seven-point-nine times
-> faster cold start."
+> back null — reported as findings, not hidden. And two gave real wins:
+> mlkem-native's hand-tuned NEON assembly, four times faster per
+> operation; GraalVM native-image, seven-point-nine times faster cold
+> start."
 
 ---
 
-## 1:15–2:00 — The differentiator: an AI audit caught a real security bug
+## 1:05–1:45 — An AI audit caught a real security bug in our own code
 
-**On screen:** terminal, `git log --oneline -5` scrolled to show commit
-`c98261a` ("Fix lever-5 native-KEM RNG..."), or a slide quoting the commit
-message. Optionally re-run `./run-nativekem.sh` live to show the
-`[native-mlkem-provider]` trace-marker verification.
+**On screen:** terminal, `git log --oneline -8` scrolled to show commit
+`c98261a` ("Fix lever-5 native-KEM RNG..."). Optionally re-run
+`./run-nativekem.sh` live to show the `[native-mlkem-provider]` trace
+-marker verification.
 
 **Narration:**
 > "Here's what makes this different from a typical benchmark project:
 > every claim in this repo was adversarially re-checked by independent AI
 > models, run blind to each other — the same way you'd want a second human
-> reviewer, but applied consistently across eight levers, not once. One of
-> those audits caught something real: the fastest optimization in this
-> project was deriving actual TLS session secrets from deterministic,
-> non-cryptographic key material — a genuine security bug, not a style
-> nit. We fixed it, verified two keygens now produce different keys where
-> before they were identical, and re-measured on real hardware to see what
-> the fix actually cost. That's the discipline this whole project runs on:
-> every place a measurement turned out wrong, that's documented, not
-> quietly corrected."
+> reviewer, but applied consistently, not once. One of those audits caught
+> something real: our fastest optimization was deriving actual TLS session
+> secrets from deterministic, non-cryptographic key material — a genuine
+> security bug. We fixed it, verified two keygens now produce different
+> keys where before they were identical, and re-measured on real hardware
+> to see what the fix actually cost. That discipline runs through this
+> whole project: every place a measurement turned out wrong, that's
+> documented, not quietly corrected."
 
 ---
 
-## 2:00–2:35 — Built for the audience that actually needs this
+## 1:45–2:30 — A real AI workload, secured by the migration itself
 
-**On screen:** `docs/regulated-deployment-guide.md` scrolled briefly, or
-the CBOM JSON (`component-c/cbom/after.cbom.json`) showing the honestly
--unmigrated ECDSA entry.
+**On screen:** terminal, `./run-ai.sh` running live (or a recording of it
+if the backend takes too long to start on camera) — let the real model
+reply and the verification lines both sit on screen for a beat each.
+
+**What appears (verified, this is the actual real-hardware output):**
+```
+VERIFIED: HelloRetryRequest observed (2 ClientHellos) - consistent
+with X25519MLKEM768 (the first-preference group) being negotiated
+[ai-client] ai-client: model replied " A lattice is a mathematical
+concept used in cryptography..."
+[ai-client]   handshake / inference ratio = 0.107  (i.e. handshake cost
+is 9.4x smaller than the AI workload it fronts)
+```
 
 **Narration:**
-> "This isn't aimed at a green-field rewrite — it's aimed at Java shops in
-> regulated industries who can't rip out a certified codebase. A Claude
-> Code Skill catches classical-crypto regressions before they ship — we
-> ran it live against fresh code, not just wrote it up. A schema-validated
-> Cryptography Bill of Materials tracks exactly what's migrated and what
-> isn't — and it stays honest even when that's inconvenient: this one
-> still lists a certificate algorithm as unmigrated, because it genuinely
-> is."
+> "This is what actually makes Latticejack an AI solution, not just a
+> crypto migration that happens to run on Arm: a real, quantized language
+> model, served by llama.cpp with Arm's own KleidiAI acceleration — we
+> checked it actually engaged, not just linked, down to the kernel
+> selection log and a non-zero accelerated-buffer size — sitting behind
+> this exact hybrid post-quantum handshake. On the real Azure Cobalt 100
+> target, the handshake cost is about nine times smaller than the AI
+> request it fronts — quantum-safe TLS is noise next to the AI workload it
+> protects. We even found a real memory problem getting here — the model
+> server got OOM-killed on this VM's limited RAM — and fixed it live
+> rather than working around it quietly."
 
 ---
 
-## 2:35–2:55 — Close
+## 2:30–2:50 — Close
 
 **On screen:** repo URL / README title card.
 
 **Narration:**
-> "Eight levers, two honest nulls, one real security bug found and fixed,
-> all on real Arm64 hardware. Latticejack — github.com/yuanhawk/latticejack."
+> "Eight optimization levers, a real security bug found and fixed by an
+> AI audit, and a real AI workload running behind the migration it's
+> pitching — all on real Arm64 hardware, all self-verifying. Latticejack —
+> github.com/yuanhawk/latticejack."
 
 ---
 
 ## Notes for whoever records this
 
 - Every number above is quoted from committed docs (`README.md`,
-  `WRITEUP.md`, `benchmarks/nativekem-e2e-bench/README.md`) — don't
-  round differently on camera than the write-up does, a judge who
-  cross-checks will notice.
+  `WRITEUP.md`, `benchmarks/nativekem-e2e-bench/README.md`,
+  `benchmarks/ai-inference-pqc/README.md`) — don't round differently on
+  camera than the write-up does, a judge who cross-checks will notice.
+  The AI-workload ratio varies run to run (measured 9.1x-9.8x across 3
+  real runs, ~9.4x average) — say "about nine times" rather than a false
+  -precision single decimal if the live run lands somewhere in that range
+  rather than exactly on the average.
 - If recording on the Azure VM: start it, record, `az vm deallocate`
   immediately after — this project has a strict no-idle-VM cost policy,
-  don't let the recording session leave it running.
-- The `./run after` step already takes a few seconds of real handshake
-  time — don't cut that out, the "it's live, not a mockup" beat is worth
-  more than the seconds saved.
-- If total runtime creeps past 2:55, cut the 2:00–2:35 beat first (it's
-  the weakest visually) before cutting anything from 0:15–2:00 — the
-  hardware-proof and the AI-audit-caught-a-real-bug beats are this
-  project's actual differentiators and should survive any trim.
+  don't let the recording session leave it running. Also remember
+  `llama-server` needs to already be running and healthy before
+  `run-ai.sh` is called — start it first, off camera, matching
+  `component-ai/README.md`'s instructions (and cap context size per that
+  README's own OOM note if running on the VM's limited RAM).
+- The AI-workload beat (1:45-2:30) is the single most important addition
+  in this revision — every audit run against this project agrees it's
+  what actually answers the "is this an AI solution" question, not just
+  argues it. If total runtime creeps past 2:55, cut duration from the
+  0:35-1:05 chart beat or tighten narration pacing elsewhere before
+  touching this one.
+- The regulated-industry/Component C angle (guardrail Skill, CBOM) didn't
+  make the cut in this revision purely on time — if there's room to extend
+  past 3:00 for a non-judged cut, or a follow-up video, it's a strong
+  beat: `docs/regulated-deployment-guide.md` and
+  `component-c/cbom/after.cbom.json`'s honestly-unmigrated ECDSA entry are
+  both still real, checkable material.
