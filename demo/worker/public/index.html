@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Latticejack live demo</title>
+<link rel="stylesheet" href="/style.css" />
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+</head>
+<body>
+<header>
+  <h1>Latticejack: hybrid post-quantum TLS, live</h1>
+  <div id="vm-badge" class="badge badge-unknown" title="Azure demo VM power state">
+    <span class="dot"></span> <span id="vm-badge-text">checking VM status&hellip;</span>
+  </div>
+</header>
+
+<main>
+
+  <section id="landing" class="panel">
+    <h2>What this does</h2>
+    <p>
+      Clicking Start boots a real Azure VM, runs this project's demo scripts on
+      it over a real network, and streams the raw output back here. It is
+      <strong>not instant</strong> - expect roughly <strong>4 to 7 minutes</strong>
+      end to end (VM boot, then four stages: a classical-TLS baseline, the
+      hybrid-PQC upgrade, a native ML-KEM provider variant, and a real local
+      LLM request fronted by the same hybrid handshake).
+    </p>
+    <p>
+      Only one live run at a time. If someone else's run is in progress you'll
+      land in spectator mode on their session instead of starting a new one.
+    </p>
+
+    <div id="turnstile-container" class="cf-turnstile"></div>
+
+    <button id="start-button" type="button" disabled>Start demo</button>
+    <p id="start-error" class="error-text" hidden></p>
+  </section>
+
+  <section id="run" class="panel" hidden>
+    <h2>Run in progress</h2>
+    <p id="run-session" class="muted"></p>
+
+    <ol id="stage-timeline" class="stage-timeline">
+      <li data-stage="before"><span class="stage-dot"></span> before (classical TLS baseline)</li>
+      <li data-stage="after"><span class="stage-dot"></span> after (hybrid X25519MLKEM768)</li>
+      <li data-stage="nativekem"><span class="stage-dot"></span> nativekem (native ML-KEM provider)</li>
+      <li data-stage="ai"><span class="stage-dot"></span> ai (LLM request over hybrid TLS)</li>
+    </ol>
+
+    <div id="verdict-panel" class="verdict-panel" hidden>
+      <h3>Verdicts</h3>
+      <p class="muted small">
+        Every line below is quoted verbatim from the scripts' own output -
+        nothing here is synthesized or paraphrased.
+      </p>
+      <ul id="verdict-list"></ul>
+    </div>
+
+    <h3>Raw output</h3>
+    <pre id="log-pane" aria-live="polite"></pre>
+
+    <div id="end-state" class="end-state" hidden>
+      <h3 id="end-state-title"></h3>
+      <p id="end-state-detail"></p>
+      <dl id="end-state-numbers" class="numbers" hidden></dl>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p class="muted small">
+    Log polling every 2s. See demo/worker/README.md in the repo for the exact
+    wire contract between this page, the Worker, and the VM-side script.
+  </p>
+</footer>
+
+<script>
+  // Owner TODO: put the real Turnstile site key here before deploying.
+  window.LATTICEJACK_DEMO_CONFIG = {
+    turnstileSiteKey: "<<FILL_IN_TURNSTILE_SITE_KEY>>",
+  };
+</script>
+<script src="/app.js"></script>
+</body>
+</html>

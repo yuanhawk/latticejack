@@ -23,6 +23,13 @@
 #        component-ai/llama.cpp/build/bin/llama-server \
 #          -m component-ai/models/Llama-3.2-1B-Instruct-Q4_0.gguf \
 #          --host 127.0.0.1 --port 8090
+#
+# Set SKIP_BUILD=1 to skip this script's own `mvn package` + build-classpath
+# step (for a caller, e.g. demo/run-demo.sh, that already built once up
+# front and wants to run all four demo scripts back-to-back without
+# redundant rebuilds - target/classpath.txt must already exist in that
+# case). When unset (the default), behavior is unchanged from before this
+# option existed.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -46,10 +53,12 @@ if ! curl -sf --max-time 5 "$LLAMA_URL/health" > /dev/null; then
 fi
 echo "llama-server OK."
 
-echo "=== building ==="
-mvn -q -DskipTests package
-mvn -q org.apache.maven.plugins:maven-dependency-plugin:3.7.0:build-classpath \
-  -Dmdep.outputFile=target/classpath.txt
+if [ "${SKIP_BUILD:-0}" != "1" ]; then
+  echo "=== building ==="
+  mvn -q -DskipTests package
+  mvn -q org.apache.maven.plugins:maven-dependency-plugin:3.7.0:build-classpath \
+    -Dmdep.outputFile=target/classpath.txt
+fi
 
 CP="target/classes:$(cat target/classpath.txt)"
 

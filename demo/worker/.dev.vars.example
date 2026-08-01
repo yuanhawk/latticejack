@@ -1,0 +1,5 @@
+# Copy to .dev.vars for local `wrangler dev` testing. These are placeholder
+# values ONLY - no real Azure calls succeed with these, which is expected;
+# they exist so the Worker starts locally without missing-binding errors.
+AZURE_CLIENT_SECRET=local-placeholder-not-a-real-secret
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA

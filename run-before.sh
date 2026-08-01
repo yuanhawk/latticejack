@@ -3,6 +3,11 @@
 # default TLS 1.3 negotiation -> X25519 key exchange on current JDKs).
 # Set LATTICEJACK_DEBUG=1 to dump the full handshake (useful for verifying
 # exactly which group/signature scheme was negotiated).
+# Set SKIP_BUILD=1 to skip this script's own `mvn package` step (for a
+# caller, e.g. demo/run-demo.sh, that already built once up front and wants
+# to run all four demo scripts back-to-back without redundant rebuilds).
+# When unset (the default), behavior is unchanged from before this option
+# existed.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -13,8 +18,10 @@ KEYS_DIR="keys/classical"
 PASS="changeit"
 PORT="${LATTICEJACK_PORT:-8443}"
 
-echo "=== building ==="
-mvn -q -DskipTests package
+if [ "${SKIP_BUILD:-0}" != "1" ]; then
+  echo "=== building ==="
+  mvn -q -DskipTests package
+fi
 
 DEBUG_OPTS=()
 if [ "${LATTICEJACK_DEBUG:-0}" = "1" ]; then
@@ -31,6 +38,8 @@ COMMON_OPTS=(
 
 echo "=== [before] classical TLS/mTLS on port $PORT ==="
 
+CLIENT_LOG="$(mktemp)"
+
 # --enable-preview: not used by this classical path itself, but required at
 # runtime for EVERY class in the module once pom.xml's compiler plugin turns
 # it on module-wide for src/main/java/com/latticejack/pqc/nativekem/'s
@@ -40,12 +49,33 @@ java --enable-preview "${COMMON_OPTS[@]}" \
   -Djavax.net.ssl.keyStorePassword="$PASS" \
   -cp target/classes com.latticejack.pqc.EchoTlsServer &
 SERVER_PID=$!
-trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+cleanup() {
+  kill "$SERVER_PID" 2>/dev/null || true
+  rm -f "$CLIENT_LOG"
+}
+trap cleanup EXIT
 sleep 1
 
 java --enable-preview "${COMMON_OPTS[@]}" \
   -Djavax.net.ssl.keyStore="$KEYS_DIR/client.jks" \
   -Djavax.net.ssl.keyStorePassword="$PASS" \
-  -cp target/classes com.latticejack.pqc.EchoTlsClient
+  -cp target/classes com.latticejack.pqc.EchoTlsClient 2>&1 | tee "$CLIENT_LOG"
 
 wait "$SERVER_PID"
+
+# --- Correctness, not just "it ran": unlike run-after.sh/run-nativekem.sh/
+# run-ai.sh, this script previously asserted nothing beyond a nonzero exit
+# code. Mirror run-nativekem.sh's own pattern here: grep the client log for
+# the server's echoed reply line, positively confirming the round trip
+# actually completed over the TLS channel rather than just trusting
+# `set -euo pipefail` + `wait "$SERVER_PID"` not exploding.
+if ! grep -q 'server replied "echo: hello from client"' "$CLIENT_LOG"; then
+  echo "" >&2
+  echo "VERIFICATION FAILED: client did not receive the expected echoed reply" >&2
+  echo "through the TLS channel - see $CLIENT_LOG contents above." >&2
+  exit 1
+fi
+
+echo ""
+echo "VERIFIED: client received the echoed application data back through the"
+echo "TLS channel - handshake round-trip actually completed end to end."

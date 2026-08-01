@@ -1,0 +1,19 @@
+{
+  "name": "latticejack-demo-worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloudflare Worker orchestrating the Latticejack live-demo VM (start Azure VM, dispatch Run Command, ingest streamed log output, serve the frontend).",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250801.0",
+    "typescript": "^5.5.4",
+    "vitest": "^2.1.9",
+    "wrangler": "^3.78.12"
+  }
+}

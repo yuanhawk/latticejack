@@ -1,0 +1,198 @@
+:root {
+  color-scheme: light dark;
+  --bg: #0b0d12;
+  --fg: #e6e8eb;
+  --muted: #9aa2ad;
+  --panel: #12151b;
+  --border: #262b34;
+  --accent: #5fb3ff;
+  --ok: #38c172;
+  --fail: #ef5555;
+  --pending: #556070;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f7f8fa;
+    --fg: #1a1d22;
+    --muted: #5a6270;
+    --panel: #ffffff;
+    --border: #dde1e6;
+    --accent: #1867c0;
+    --ok: #1a8f4f;
+    --fail: #c62828;
+    --pending: #8b93a0;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.5;
+}
+
+header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+h1 { font-size: 1.15rem; margin: 0; }
+
+main {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+
+.muted { color: var(--muted); }
+.small { font-size: 0.85rem; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.badge .dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: var(--pending);
+}
+
+.badge-running .dot { background: var(--ok); }
+.badge-deallocated .dot { background: var(--pending); }
+.badge-error .dot { background: var(--fail); }
+
+button {
+  font: inherit;
+  padding: 0.6rem 1.1rem;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #08111c;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.error-text {
+  color: var(--fail);
+  font-weight: 600;
+}
+
+.stage-timeline {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.stage-timeline li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.stage-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 999px;
+  background: var(--pending);
+  flex-shrink: 0;
+}
+
+.stage-timeline li[data-status="running"] .stage-dot {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.stage-timeline li[data-status="done"] .stage-dot { background: var(--ok); }
+.stage-timeline li[data-status="failed"] .stage-dot { background: var(--fail); }
+.stage-timeline li[data-status="failed"] { border-color: var(--fail); }
+
+.verdict-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+}
+
+#verdict-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
+
+#log-pane {
+  background: #05070a;
+  color: #d5f5d5;
+  border-radius: 8px;
+  padding: 1rem;
+  max-height: 420px;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (prefers-color-scheme: light) {
+  #log-pane { background: #10141a; color: #cdeccd; }
+}
+
+.end-state {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.end-state.state-done { border-color: var(--ok); }
+.end-state.state-failed { border-color: var(--fail); }
+
+.numbers {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
+.numbers dt { color: var(--muted); }
+
+footer {
+  padding: 1.5rem 1.25rem;
+  text-align: center;
+}

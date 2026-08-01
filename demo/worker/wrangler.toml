@@ -1,0 +1,102 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "latticejack-demo"
+main = "src/worker.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = []
+
+# ---------------------------------------------------------------------------
+# Static frontend (public/) served via the assets binding. Single Worker
+# serves both the static site AND /api/* + the Durable Object + the cron -
+# deliberately NOT a Pages+Worker split, to avoid a same-hostname routing
+# conflict between Pages and a separate Worker for /api/*.
+# ---------------------------------------------------------------------------
+[assets]
+directory = "./public"
+binding = "ASSETS"
+# Route every request through the Worker's fetch handler first (rather than
+# the asset server trying static files first) - worker.ts explicitly
+# forwards /api/* to the Durable Object and everything else to
+# env.ASSETS.fetch(request). This project pins an older Wrangler
+# (^3.78) whose [assets] schema only accepts a boolean here - newer
+# Wrangler/Workers Assets versions also accept a path-pattern array
+# (e.g. ["/api/*"]) to route more selectively; `true` is the portable
+# choice and is what worker.ts's own routing logic already assumes.
+not_found_handling = "single-page-application"
+run_worker_first = true
+
+# ---------------------------------------------------------------------------
+# Durable Object: one class, one global instance (idFromName("singleton")),
+# holding the whole state machine + mutex + live log + AAD token cache +
+# rate-limit counters. See src/orchestrator.ts.
+# ---------------------------------------------------------------------------
+[[durable_objects.bindings]]
+name = "DEMO_ORCHESTRATOR"
+class_name = "DemoOrchestrator"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DemoOrchestrator"]
+
+# ---------------------------------------------------------------------------
+# KV: last-successful-run transcript ONLY (a small "here's what the last
+# good run looked like" snapshot for the landing page / postmortem use).
+# The LIVE log of an in-progress run lives in DO storage, not here.
+# ---------------------------------------------------------------------------
+[[kv_namespaces]]
+binding = "LAST_RUN_KV"
+id = "<<FILL_IN_KV_NAMESPACE_ID>>"
+preview_id = "<<FILL_IN_KV_NAMESPACE_PREVIEW_ID>>"
+
+# ---------------------------------------------------------------------------
+# Cron: dead-man's-switch, independent of the DO - runs every 15 minutes,
+# mints its own AAD token, checks instanceView, and deallocates the VM if
+# it's running with no evidence of a legitimately active session. Must keep
+# working even if the DO itself is broken/unreachable. See scheduled() in
+# src/worker.ts.
+# ---------------------------------------------------------------------------
+[triggers]
+crons = ["*/15 * * * *"]
+
+# ---------------------------------------------------------------------------
+# Non-secret configuration. Secrets (AZURE_CLIENT_SECRET, TURNSTILE_SECRET_KEY)
+# are NOT here - set them with `wrangler secret put <NAME>` (or in .dev.vars
+# for local `wrangler dev`, see .dev.vars.example). The Azure identifiers
+# below (tenant/client/subscription/resource-group/vm-name) are not
+# themselves secret - only the client secret is - but they are still
+# environment-specific, so they're placeholders here rather than real IDs.
+# ---------------------------------------------------------------------------
+[vars]
+AZURE_TENANT_ID = "<<FILL_IN_AZURE_TENANT_ID>>"
+AZURE_CLIENT_ID = "<<FILL_IN_AZURE_CLIENT_ID>>"
+AZURE_SUBSCRIPTION_ID = "<<FILL_IN_AZURE_SUBSCRIPTION_ID>>"
+AZURE_RESOURCE_GROUP = "<<FILL_IN_AZURE_RESOURCE_GROUP>>"
+AZURE_VM_NAME = "<<FILL_IN_AZURE_VM_NAME>>"
+AZURE_API_VERSION = "2024-07-01"
+
+# Caps enforced from DO storage (source of truth - do NOT rely solely on
+# Cloudflare paid-tier WAF rate limiting, it may not exist on every plan).
+DEMO_DAILY_CAP = "20"
+DEMO_PER_IP_HOURLY_CAP = "3"
+
+# Alarm cadence / timeouts, in seconds, for the single periodic DO alarm.
+DEMO_ALARM_INTERVAL_SECONDS = "45"
+DEMO_HARD_CAP_SECONDS = "720"
+DEMO_SILENCE_TIMEOUT_SECONDS = "180"
+
+# Path on the VM the Run Command dispatch invokes (see demo/run-demo.sh,
+# built by a parallel task - this is the wrapper's installed location).
+DEMO_VM_SCRIPT_PATH = "/opt/latticejack-demo/run-demo.sh"
+
+# ---------------------------------------------------------------------------
+# Owner TODO before real deployment:
+#   - Fill in every <<FILL_IN_...>> placeholder above.
+#   - Fill in `account_id` below (find via `wrangler whoami`).
+#   - Set secrets: wrangler secret put AZURE_CLIENT_SECRET
+#                  wrangler secret put TURNSTILE_SECRET_KEY
+#   - Create the KV namespace: wrangler kv namespace create LAST_RUN_KV
+#   - Optionally add a custom domain / route below once DNS is set up:
+#       [[routes]]
+#       pattern = "<<FILL_IN_CUSTOM_DOMAIN>>"
+#       custom_domain = true
+# ---------------------------------------------------------------------------
+account_id = "<<FILL_IN_CLOUDFLARE_ACCOUNT_ID>>"

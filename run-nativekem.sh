@@ -20,6 +20,13 @@
 # (-Dlatticejack.nativekem.trace=true) to positively confirm keygen, encaps,
 # AND decaps each actually executed through the native path - the whole
 # point of this script.
+#
+# Set SKIP_BUILD=1 to skip this script's own `mvn package` + build-classpath
+# step (for a caller, e.g. demo/run-demo.sh, that already built once up
+# front and wants to run all four demo scripts back-to-back without
+# redundant rebuilds - target/classpath.txt must already exist in that
+# case). When unset (the default), behavior is unchanged from before this
+# option existed.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -43,10 +50,12 @@ if [ ! -f "$NATIVEKEM_LIB" ]; then
   exit 1
 fi
 
-echo "=== building ==="
-mvn -q -DskipTests package
-mvn -q org.apache.maven.plugins:maven-dependency-plugin:3.7.0:build-classpath \
-  -Dmdep.outputFile=target/classpath.txt
+if [ "${SKIP_BUILD:-0}" != "1" ]; then
+  echo "=== building ==="
+  mvn -q -DskipTests package
+  mvn -q org.apache.maven.plugins:maven-dependency-plugin:3.7.0:build-classpath \
+    -Dmdep.outputFile=target/classpath.txt
+fi
 
 CP="target/classes:$(cat target/classpath.txt)"
 
