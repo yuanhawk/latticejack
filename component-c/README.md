@@ -18,11 +18,15 @@ crypto — the specific failure mode this project hit once already
 intended hybrid group, with *no runtime error at all*; see
 `docs/bouncycastle-pqc-notes.md`). See
 [`skills/pqc-authoring/examples/worked-example.md`](../skills/pqc-authoring/examples/worked-example.md)
-for that exact bug worked through as a test case, demonstrating (not
-executing as an automated test) that the skill's checklist catches a real
-regression, not just a hypothetical one — the worked example is an
-authored document, not a captured transcript of the skill actually
-running.
+for that exact bug worked through as a narrated test case — an authored
+document explaining the skill, not a captured transcript of it actually
+running. That transcript also now exists, separately:
+[`skills/pqc-authoring/examples/executed-review-transcript.md`](../skills/pqc-authoring/examples/executed-review-transcript.md)
+is a real, single-pass review of three snippets written specifically for
+that run (never seen by the skill's author beforehand in this form),
+exercising checklist items the worked example doesn't, correctly flagging
+two real regressions and correctly declining to flag a true negative
+(RSA used for JWT signing — explicitly out of scope) in the same pass.
 
 Deliberately scoped narrow: it flags classical crypto in TLS/handshake
 contexts specifically, not general-purpose application crypto elsewhere

@@ -118,13 +118,29 @@ default, and forcing it to be breaks a different way via its DRBG
 SecureRandom classes) - full mechanism and the exact flags for each:
 `native-image/README.md`.
 
+## Which GraalVM distribution
+
+**Oracle GraalVM**, not GraalVM Community Edition - confirmed directly
+(`java -version` on the actual install used, not assumed from a download
+link): `Oracle GraalVM 21.0.12+7.1 (build 21.0.12+7-LTS-jvmci-23.1-b96)`.
+This matters for license clarity since a Java shop evaluating this path
+would ask: Oracle GraalVM for JDK 17+ is licensed under the **GraalVM
+Free Terms and Conditions (GFTC)** - free to use, including in
+production, distinct from both a paid Oracle license and from GraalVM
+Community Edition's fully open-source (GPLv2-with-CE-exception) terms.
+Worth confirming current GFTC terms directly
+([oracle.com/downloads/licenses/graal-free-license.html](https://www.oracle.com/downloads/licenses/graal-free-license.html))
+before a production decision - not vendored or reproduced here, same
+policy as this project's other third-party licenses.
+
 ## Reproducing
 
 ```bash
 # on the target machine (native-image is architecture-specific - Linux
 # aarch64 binaries built on this Azure VM won't run on Apple Silicon or
 # vice versa; rebuild fresh on whatever you're benchmarking):
-export GRAALVM_HOME=/path/to/graalvm-jdk-21
+export GRAALVM_HOME=/path/to/graalvm-jdk-21   # Oracle GraalVM 21.x - see
+                                                # "Which GraalVM distribution" above
 ./scripts/build-native-image.sh
 ./scripts/bench-native-image.sh 10
 ```
