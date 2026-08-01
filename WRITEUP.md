@@ -783,15 +783,13 @@ out as "high-leverage" - front-loaded, it would show `./run before` /
 `./run after` succeeding on real Arm64, the before/naive/tuned benchmark
 story, and the two Component C artifacts. Not made this session.
 
-**The repository is currently private.** Checked directly via `gh repo
-view` (not assumed): GitHub correctly detects and would display the
-Apache-2.0 license in the About section - that specific concern is
-resolved - but `isPrivate: true`. The official rules require "the
-repository must be public and open source" as a submission requirement,
-not an optional nicety - judges cannot access a private repo at all. This
-needs to change before submission; not done automatically here since
-making a repo public is the kind of action a user should decide the
-timing of, not something to flip silently.
+**Update: the repository is now public.** This section originally flagged
+it as private and blocking - checked again directly via `gh repo view`,
+not assumed: `isPrivate: false`, Apache-2.0 correctly detected and
+displayed in the About section. The official rules' "repository must be
+public and open source" submission requirement is met. Left here, crossed
+off rather than deleted, since this project's own practice elsewhere is
+to show the correction, not just the corrected state.
 
 **Every real-hardware number in this project comes from one 2-vCPU VM**,
 client and server co-located on loopback, sharing those same 2 vCPUs -
@@ -802,12 +800,19 @@ topology; "3-run averaged" means three runs on the same boot of the same
 VM, not independence from that VM's specific noisy-neighbor/thermal state
 at the time.
 
-**The FFM benchmarks (levers 5, 7, 8) ran under JDK 21; the BC/JDK 25
-baselines they're compared against (`benchmarks/mlkem-microbench/`) ran
-under JDK 25.0.3** - an undisclosed cross-JVM variable behind every
-"~4x faster than BC" headline in this document, found by an independent
-audit. BC's pure-Java bytecode is unlikely to differ hugely in speed
-between JDK 21 and 25, but this wasn't controlled for or checked.
+**Update: the JDK 21-vs-25 cross-baseline gap this section originally
+flagged has since been measured, not just disclosed.** The FFM benchmarks
+(levers 5, 7, 8) originally ran only under JDK 21 (FFM preview there)
+against BC/JDK 25 baselines (`benchmarks/mlkem-microbench/`) - a real,
+uncontrolled variable behind every "~4x faster than BC" headline in this
+document, found by an independent audit. FFM finalized as non-preview in
+JDK 22 (JEP 454), so all three FFM benchmarks were re-run under JDK 25
+with no `--enable-preview`, on real Azure Cobalt 100 hardware: total time
+moved +0.27% / +0.33% / +0.43% - all under 0.5%, within run-to-run noise.
+The confound was real in principle but did not move any reported ratio in
+practice; see each benchmark's own README (`mlkem-ffm-bench`,
+`mlkem-rust-ffm-bench`, `pqcrypto-ffm-bench`) for the full before/after
+numbers.
 
 **No CDS/AppCDS baseline exists for lever 4's cold-start comparison.**
 Class Data Sharing is the standard first-line mitigation a Java shop would

@@ -16,20 +16,21 @@ import com.latticejack.pqc.TlsConfig;
 /**
  * Counterpart to {@link PqcAiTlsServer} — connects over hybrid X25519MLKEM768
  * TLS, sends one prompt line, reads back one JSON reply line, and reports a
- * LOCAL-MACHINE-ONLY rough timing split: handshake time vs. total
- * request-to-response time (which is dominated by llama-server's own
- * prompt-eval + token-generation time, not by anything TLS-related).
+ * rough timing split: handshake time vs. total request-to-response time
+ * (which is dominated by llama-server's own prompt-eval + token-generation
+ * time, not by anything TLS-related).
  *
- * IMPORTANT — these are LOCAL PROTOTYPE numbers taken on a Mac laptop
- * (Apple M-series), not the project's real-hardware measurement: every
- * other benchmark in this repo (see benchmarks/) was taken on the actual
- * Azure Cobalt 100 (Neoverse-N2) target and is the number that belongs in
- * WRITEUP.md. This class exists to prove the INTEGRATION MECHANICS work
- * (TLS-fronted request reaches a real KleidiAI-accelerated model and a real
- * response comes back over the encrypted channel) and to produce a rough,
- * honestly-labeled *shape* of the comparison (handshake cost vs. inference
- * cost) — not a number to quote as a hackathon result. A later phase
- * re-runs this same mechanism on the real target for the real number.
+ * This same class is used both for the cheap local prototype (originally
+ * run on a Mac laptop, to work out the integration mechanics before
+ * spending real Azure VM time) AND, unmodified, for the real-hardware
+ * measurement on the actual Azure Cobalt 100 (Neoverse-N2) target that
+ * produced the numbers quoted in WRITEUP.md and
+ * benchmarks/ai-inference-pqc/README.md - it does not know which machine
+ * it's running on, so its printed platform label is read at runtime from
+ * {@code os.name}/{@code os.arch} (see below) rather than hardcoded to
+ * either one; an earlier version of this class printed a hardcoded
+ * "Mac laptop" label unconditionally, which was still printing on the real
+ * Azure run - found by an independent audit, fixed here.
  */
 public final class PqcAiTlsClient {
 
@@ -79,8 +80,11 @@ public final class PqcAiTlsClient {
 
                 System.out.println("[" + cfg.label() + "] ai-client: model replied \"" + content + "\"");
                 System.out.println("");
-                System.out.println("[" + cfg.label() + "] ai-client: LOCAL PROTOTYPE TIMING "
-                        + "(Mac laptop, NOT the Azure Cobalt 100 headline number):");
+                String platform = System.getProperty("os.name", "unknown-os") + "/"
+                        + System.getProperty("os.arch", "unknown-arch");
+                System.out.println("[" + cfg.label() + "] ai-client: TIMING (this run: " + platform
+                        + " - cross-check against WRITEUP.md/benchmarks/ai-inference-pqc/README.md "
+                        + "for which run is the quoted headline number):");
                 System.out.println("[" + cfg.label() + "]   handshake time        = "
                         + String.format("%.1f", handshakeMs) + " ms");
                 System.out.println("[" + cfg.label() + "]   request-to-response   = "

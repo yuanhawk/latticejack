@@ -39,17 +39,23 @@ import com.latticejack.pqc.nativekem.NativeMlkemProvider;
  * break the classical "before" run when the BC jars aren't on its classpath
  * (run-before.sh intentionally omits them).
  *
- * Visibility note: this class and {@link #NAMED_GROUPS}/{@link #install()}/
- * {@link #buildContext()} are {@code public} (widened from package-private)
- * solely so the additive {@code com.latticejack.pqc.aiproxy} package
- * (Component D prototype, see PqcAiTlsServer/PqcAiTlsClient) can reuse the
- * exact same hybrid-PQC handshake setup EchoTlsServer/EchoTlsClient/
- * BenchmarkClient/BenchmarkServer already use, rather than forking a second
- * copy of it. This is a visibility-only change — no method body, field
- * value, or call site in this file changed — so it carries no behavioral
- * risk to the existing before/after paths; run-after.sh and run-nativekem.sh
- * (which exercise this class already) both still pass unmodified after this
- * change, see run-ai.sh's own comments for how it re-verifies the same
+ * Visibility note: this class, {@link #install()}, and {@link #buildContext()}
+ * are {@code public} (widened from package-private) solely so the additive
+ * {@code com.latticejack.pqc.aiproxy} package (Component D prototype, see
+ * PqcAiTlsServer/PqcAiTlsClient) can reuse the exact same hybrid-PQC
+ * handshake setup EchoTlsServer/EchoTlsClient/BenchmarkClient/BenchmarkServer
+ * already use, rather than forking a second copy of it. {@code NAMED_GROUPS}
+ * itself did NOT stay public - see its own Javadoc: a follow-up audit found
+ * a public mutable array is a real shared-state hazard, so it went back to
+ * private behind a {@link #namedGroups()} accessor, and every caller
+ * (six of them: EchoTlsServer, EchoTlsClient, BenchmarkClient,
+ * BenchmarkServer, PqcAiTlsServer, PqcAiTlsClient) was updated to call it
+ * instead of referencing the field directly. Both changes together are
+ * still visibility/access-pattern-only - no method body, field value, or
+ * handshake-negotiation logic in this file changed - so they carry no
+ * behavioral risk to the existing before/after paths; run-after.sh and
+ * run-nativekem.sh (which exercise this class already) both still pass
+ * unmodified, see run-ai.sh's own comments for how it re-verifies the same
  * HelloRetryRequest check those scripts do.
  */
 public final class ProviderBootstrap {

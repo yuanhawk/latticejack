@@ -66,14 +66,20 @@ Nothing in `EchoTlsServer.java`, `EchoTlsClient.java`,
 - `AiConfig.java` — system-property-driven config record, mirrors
   `TlsConfig.java`'s convention.
 
-One pre-existing file was edited, visibility only:
+One pre-existing file was edited:
 [`ProviderBootstrap.java`](../../src/main/java/com/latticejack/pqc/ProviderBootstrap.java) —
-the class, `NAMED_GROUPS`, `install()`, and `buildContext()` were widened
-from package-private to `public` (documented in that file's Javadoc) so
+the class, `install()`, and `buildContext()` were widened from
+package-private to `public` (documented in that file's Javadoc) so
 `aiproxy` could reuse the exact same handshake setup `./run after` uses
-instead of forking a second copy of it. No method body, field value, or
-call site changed. `./run-after.sh` and `./run-nativekem.sh` were re-run
-after this edit on both phases and still pass — no regression.
+instead of forking a second copy of it. `NAMED_GROUPS` itself did NOT stay
+public: a follow-up audit found a public mutable array is a real
+shared-state hazard (any code anywhere could silently downgrade the
+key-exchange preference for every caller), so it went back to `private`
+behind a `namedGroups()` accessor returning a defensive copy — updating
+all six call sites project-wide, this package's two new classes included.
+No handshake-negotiation logic changed either way. `./run-after.sh` and
+`./run-nativekem.sh` were re-run after both edits and still pass — no
+regression.
 
 Driver: `run-ai.sh` (repo root), structured like `run-after.sh`/
 `run-nativekem.sh`, reusing their HelloRetryRequest check verbatim to rule
