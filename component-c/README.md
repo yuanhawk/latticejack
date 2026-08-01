@@ -38,6 +38,73 @@ scope hasn't extended there yet (ML-DSA cert auth deferred, see
 honestly scoped in vs. out, rather than manufacturing false-positive
 pressure toward a target the project itself hasn't committed to.
 
+### Using this skill in your own project
+
+The skill above lives at `skills/pqc-authoring/` in *this* repo, cited
+throughout with this project's own file names
+(`ProviderBootstrap.java`, `run-after.sh`, `MIGRATION.md`) — useful as
+worked documentation, but not, as-is, something Claude Code auto-loads in
+a session against a different codebase. A second, generalized copy lives
+at [`.claude/skills/pqc-authoring/`](../.claude/skills/pqc-authoring/SKILL.md):
+same checklist, but every project-specific citation replaced with a
+"identify your own X first" step, so it reads correctly cold, in a
+different repo, with none of this project's files present. That directory
+*is* a real Claude Code
+[Agent Skill](https://code.claude.com/docs/en/skills), installable as-is.
+
+Two files kept deliberately separate rather than one made a symlink of
+the other, because they now say different things: the root-level version
+correctly hardcodes this project's real bootstrap function and file
+citations (that's what makes the worked example concrete and checkable),
+while the `.claude/skills/` version has to *not* hardcode any of that to
+be genuinely reusable elsewhere. A symlink would force both to stay
+byte-identical, which is incompatible with that split.
+
+**Mechanics of installing it in another project** (verified against the
+current Claude Code skills documentation, not assumed):
+
+1. Copy the whole directory — `SKILL.md` plus its `examples/` subfolder —
+   into the target repo at `.claude/skills/pqc-authoring/`. That's the
+   entire installation step; there's no build, no manifest, no separate
+   registration file. Claude Code discovers any skill on this path
+   automatically:
+
+   ```bash
+   cp -R .claude/skills/pqc-authoring  /path/to/other-repo/.claude/skills/pqc-authoring
+   ```
+
+2. Commit `.claude/skills/pqc-authoring/` to the target repo's version
+   control, the same as any other project config, so every teammate's
+   Claude Code session (and CI-driven sessions) picks it up — not just
+   the machine that copied it in.
+3. Claude Code loads project skills from `.claude/skills/` in the
+   directory a session starts in, and in every parent directory up to the
+   repo root, at session start. If the `.claude/skills/` directory didn't
+   exist yet when the session started, restart Claude Code once after
+   adding it; if the directory already existed and you're just adding or
+   editing a skill inside it, Claude Code picks up the change live,
+   mid-session, no restart needed.
+4. The directory name (`pqc-authoring`) becomes both the skill's identity
+   and its slash command: type `/pqc-authoring` to invoke it directly on
+   a diff or description. It also loads automatically without being
+   typed — Claude matches the `description` field in `SKILL.md`'s
+   frontmatter against what you're doing, so asking Claude to "review
+   this TLS change" or "check this keystore script" in a repo with the
+   skill installed can trigger it with no explicit invocation at all.
+5. For a skill you want available in *every* project on your machine
+   rather than one repo at a time, drop the same directory at
+   `~/.claude/skills/pqc-authoring/` instead of (or in addition to) a
+   per-project `.claude/skills/` — personal-scope skills are available
+   session over session, project after project, without being committed
+   anywhere.
+
+No plugin packaging, marketplace listing, or `.claude-plugin/plugin.json`
+is required for this — that machinery exists for skills meant to bundle
+agents/hooks/MCP servers together or be distributed through
+`/plugin install`, which is more than this skill needs. A plain directory
+under `.claude/skills/` is a complete, standalone, spec-compliant [Agent
+Skill](https://agentskills.io) on its own.
+
 ## `component-c/cbom/` — the audit half
 
 Emits a [CycloneDX](https://cyclonedx.org/) 1.6 Cryptography Bill of

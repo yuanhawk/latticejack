@@ -76,7 +76,7 @@ public final class BenchmarkClient {
     private static void applyPqcGroups(SSLSocket socket, boolean pqc) throws Exception {
         if (pqc) {
             SSLParameters params = socket.getSSLParameters();
-            params.setNamedGroups(ProviderBootstrap.NAMED_GROUPS);
+            params.setNamedGroups(ProviderBootstrap.namedGroups());
             socket.setSSLParameters(params);
         }
     }

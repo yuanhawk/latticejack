@@ -63,6 +63,19 @@ jobs:
           key: ${{ runner.os }}-${{ runner.arch }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-${{ runner.arch }}-m2-
 
+      - name: Unit tests
+        # This project had zero automated tests until an independent audit
+        # flagged it (mvn test had nothing to run, so build used
+        # -DskipTests unconditionally). These two suites are pure Java/BC,
+        # no native library and no live TLS handshake required, so they run
+        # on every runner in this matrix unconditionally - the FFM-backed
+        # nativekem classes still aren't covered here on purpose (they
+        # require -Dlatticejack.nativekem.lib pointing at a built
+        # libmlkem768ffm.{dylib,so}, which this CI environment doesn't
+        # provision), that gap is what ./run-nativekem.sh below still
+        # covers end-to-end instead.
+        run: mvn -q test
+
       - name: Build
         run: mvn -q -DskipTests package
 

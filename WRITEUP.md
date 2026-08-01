@@ -49,7 +49,7 @@ core of this submission.
 **Why this is an AI solution, not just a crypto migration that happens to
 run on Arm:** the official rules ask for "an AI solution on Arm
 architecture" — worth answering directly rather than assuming a Track 2
-migration project reads as one automatically. Three things make it one.
+migration project reads as one automatically. Four things make it one.
 First, [`skills/pqc-authoring/`](skills/pqc-authoring/SKILL.md) is a
 Claude Code Skill — a "prompt asset" (the judging rubric's own term under
 Potential Impact) that is itself an AI-agent capability, not documentation
@@ -84,10 +84,31 @@ transports, not the local `stdio` default) run over too, and all of it is
 exposed to harvest-now-decrypt-later — Arm64 is where an increasing share
 of that AI infrastructure actually runs (Graviton,
 Cobalt 100, Ampere), which is exactly why this project measured on real
-Arm64 silicon rather than estimating. None of this is a stretch read of
-"AI solution" bolted on after the fact — the Skill and the AI-audit
-methodology are both load-bearing parts of what's described below, not
-add-ons.
+Arm64 silicon rather than estimating. **Fourth, and newer than the other
+three: that third point is no longer only prose.**
+[`benchmarks/ai-inference-pqc/`](benchmarks/ai-inference-pqc/README.md) is
+a real, working AI inference workload — a quantized LLM
+(Llama-3.2-1B-Instruct, Q4_0) served by `llama.cpp` with Arm's KleidiAI CPU
+backend, positively verified engaged (not just linked-and-hoping — the
+`--verbose` kernel-selection log, the non-zero `CPU_KLEIDIAI` weight-buffer
+size, and the symbol table were all checked, and the exact silent-fallback
+signature this project has been burned by twice before was found and
+disclosed rather than glossed over) — served behind this project's actual
+hybrid X25519MLKEM768 handshake, on the same real Azure Cobalt 100 hardware
+every other number in this document was measured on, HelloRetryRequest-
+verified each run. This is a stronger tier of evidence than the argument
+above it — a working, measured artifact rather than a claim about what TLS
+is generally used for — but only that strong where it was actually checked:
+it demonstrates the mechanism (handshake cost is roughly an order of
+magnitude smaller than the AI inference request it fronts, ~9.4x on
+average across 3 runs) on one small model, one client, no concurrency, and
+does not establish behavior at production scale, under load, or with a
+production-sized model — see that directory's README for the full,
+itemized "what this does not establish" list, in the same spirit as this
+document's own disclosed caveats elsewhere. None of this is a stretch read
+of "AI solution" bolted on after the fact — the Skill, the AI-audit
+methodology, and now this workload are all load-bearing parts of what's
+described below, not add-ons.
 
 **Why this should win:** every claim in this project is backed by a
 measurement taken on real target hardware, and every place a measurement

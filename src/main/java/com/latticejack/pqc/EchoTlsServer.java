@@ -41,7 +41,7 @@ public final class EchoTlsServer {
             }
             if (pqc) {
                 SSLParameters params = serverSocket.getSSLParameters();
-                params.setNamedGroups(ProviderBootstrap.NAMED_GROUPS);
+                params.setNamedGroups(ProviderBootstrap.namedGroups());
                 serverSocket.setSSLParameters(params);
             }
             System.out.println("[" + cfg.label() + "] server: listening, enabledProtocols="

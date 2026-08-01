@@ -21,3 +21,10 @@ keys/**/*.csr
 # a dev-machine run as if it were the official Arm64 numbers.
 benchmarks/results/*.csv
 !benchmarks/results/.gitkeep
+
+# component-ai/: local-prototype-only llama.cpp build tooling (component-ai/README.md)
+# - a full third-party git clone (its own .git/, ~700MB build output) and a
+# ~773MB downloaded GGUF model file. Neither belongs in this repo's history;
+# both are reproducible from component-ai/README.md's exact commands.
+component-ai/llama.cpp/
+component-ai/models/

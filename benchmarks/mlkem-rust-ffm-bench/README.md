@@ -62,6 +62,27 @@ fixed seed) to satisfy the API. This is a small, concrete example of the
 type-level safety difference discussed earlier: not just "fewer memory bugs
 at runtime" but categories of misuse the compiler refuses to allow at all.
 
+## JDK 25 re-baseline
+
+Same check as lever 5's ([`mlkem-ffm-bench/README.md`](../mlkem-ffm-bench/README.md#jdk-25-re-baseline)):
+the table above compares JDK 21 FFM numbers against JDK 25 BC/JDK-25-builtin
+numbers, a disclosed cross-JDK confound. Recompiled and reran on the same
+Azure Cobalt 100 VM and native library under JDK 25 (`openjdk 25.0.3`,
+no `--enable-preview`), 3 runs, correctness re-verified each run:
+
+| | keygen | encaps | decaps | **total** |
+|---|---|---|---|---|
+| JDK 21 (committed baseline, above) | 46.60 µs | 44.06 µs | 51.44 µs | **142.11 µs** |
+| JDK 25 (this re-baseline) | 46.53 µs | 44.24 µs | 51.81 µs | **142.58 µs** |
+| Delta | −0.2% | +0.4% | +0.7% | **+0.33%** |
+
+**+0.33% total — within noise, essentially identical.** Recomputed against
+the same JDK-25 BC/JDK-25-builtin baseline: ~1.33x faster than BC, ~1.23x
+faster than JDK 25's built-in ML-KEM (was ~1.34x/~1.24x under the JDK 21
+comparison — unchanged within rounding). Same conclusion as lever 5: the
+cross-JDK confound was real in principle but didn't move this result in
+practice.
+
 ## What this is, and isn't
 
 Same scope boundary as lever 5: real correctness-verified library calls via

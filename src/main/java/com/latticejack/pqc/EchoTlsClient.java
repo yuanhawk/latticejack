@@ -31,7 +31,7 @@ public final class EchoTlsClient {
             }
             if (pqc) {
                 SSLParameters params = socket.getSSLParameters();
-                params.setNamedGroups(ProviderBootstrap.NAMED_GROUPS);
+                params.setNamedGroups(ProviderBootstrap.namedGroups());
                 socket.setSSLParameters(params);
             }
             socket.startHandshake();

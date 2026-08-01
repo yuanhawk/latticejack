@@ -45,7 +45,7 @@ public final class BenchmarkServer {
             serverSocket.setNeedClientAuth(requireClientAuth);
             if (pqc) {
                 SSLParameters params = serverSocket.getSSLParameters();
-                params.setNamedGroups(ProviderBootstrap.NAMED_GROUPS);
+                params.setNamedGroups(ProviderBootstrap.namedGroups());
                 serverSocket.setSSLParameters(params);
             }
             System.out.println("[bench-server] accepting " + connections + " connections on port " + port);

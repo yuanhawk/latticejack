@@ -47,6 +47,40 @@ confirms lever 5's number is real and not just a hypothetical ceiling, and
 updates the crossover accordingly rather than leaving the ceiling-based
 figure standing uncorrected).
 
+## JDK 25 re-baseline: does the JDK 21 preview-flag confound matter?
+
+The table above compares JDK 21 FFM numbers (this benchmark, `--enable-preview`
+required) against `mlkem-microbench`'s BC/JDK 25-builtin numbers, which run
+on JDK 25 — a disclosed but real cross-JDK confound (different JIT, different
+FFM maturity: preview in 21, finalized in 22+). This was re-measured to check
+whether removing that confound moves the result.
+
+Recompiled and reran unchanged on the same real Azure Cobalt 100 VM, same
+native `libmlkem768ffm.so`, only the JVM swapped — JDK 25 confirmed present
+(`/usr/lib/jvm/java-25-openjdk-arm64`, `openjdk 25.0.3`), compiled with plain
+`javac -d target MlkemFfmBench.java` (**no** `--enable-preview` — confirms
+FFM's JDK 22+ finalization removes the flag requirement entirely), 3 runs,
+correctness re-verified each run (shared-secret agreement, 50 trials):
+
+| | keygen | encaps | decaps | **total** |
+|---|---|---|---|---|
+| JDK 21 (committed baseline, above) | 15.82 µs | 15.11 µs | 16.39 µs | **47.32 µs** |
+| JDK 25 (this re-baseline) | 15.77 µs | 15.17 µs | 16.51 µs | **47.45 µs** |
+| Delta | −0.3% | +0.4% | +0.7% | **+0.27%** |
+
+**+0.27% total — within run-to-run noise, essentially identical.** Recomputed
+ratios against the same (already-JDK-25) BC/JDK-25-builtin baseline: **4.00x
+vs. BC / 3.71x vs. JDK 25-builtin** (was 4.01x/3.72x under the JDK 21
+cross-version comparison — unchanged within rounding). **Finding, reported
+either way per the task that motivated this check: the cross-JDK confound
+did not matter here.** The FFM-integration win was never JDK-version-sensitive
+to begin with — the earlier JDK21-vs-JDK25(BC) comparison, while a real
+disclosed confound in principle, was not masking or inflating a real effect
+in practice. Same result across the two other FFM benchmarks — see
+[`mlkem-rust-ffm-bench/README.md`](../mlkem-rust-ffm-bench/README.md#jdk-25-re-baseline)
+and
+[`pqcrypto-ffm-bench/README.md`](../pqcrypto-ffm-bench/README.md#jdk-25-re-baseline).
+
 ## What this is, and isn't
 
 **A real, working, correctness-verified FFM integration of the crypto

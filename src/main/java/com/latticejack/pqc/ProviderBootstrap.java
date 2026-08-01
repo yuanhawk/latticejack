@@ -38,8 +38,21 @@ import com.latticejack.pqc.nativekem.NativeMlkemProvider;
  * loaded, regardless of which branch runs, so an unconditional call would
  * break the classical "before" run when the BC jars aren't on its classpath
  * (run-before.sh intentionally omits them).
+ *
+ * Visibility note: this class and {@link #NAMED_GROUPS}/{@link #install()}/
+ * {@link #buildContext()} are {@code public} (widened from package-private)
+ * solely so the additive {@code com.latticejack.pqc.aiproxy} package
+ * (Component D prototype, see PqcAiTlsServer/PqcAiTlsClient) can reuse the
+ * exact same hybrid-PQC handshake setup EchoTlsServer/EchoTlsClient/
+ * BenchmarkClient/BenchmarkServer already use, rather than forking a second
+ * copy of it. This is a visibility-only change — no method body, field
+ * value, or call site in this file changed — so it carries no behavioral
+ * risk to the existing before/after paths; run-after.sh and run-nativekem.sh
+ * (which exercise this class already) both still pass unmodified after this
+ * change, see run-ai.sh's own comments for how it re-verifies the same
+ * HelloRetryRequest check those scripts do.
  */
-final class ProviderBootstrap {
+public final class ProviderBootstrap {
     private ProviderBootstrap() {}
 
     /**
@@ -54,10 +67,27 @@ final class ProviderBootstrap {
      * HelloRetryRequest for it is visible in the handshake trace) - verify
      * this explicitly per-run rather than trusting group ORDER alone, via
      * LATTICEJACK_DEBUG=1 and the check run-after.sh does automatically.
+     *
+     * Kept private, not public: a {@code public static final} array is
+     * final only for the reference, not its contents - any code anywhere
+     * could do {@code NAMED_GROUPS[0] = "secp256r1"} and silently downgrade
+     * every caller's key-exchange preference at once. Found by an
+     * independent audit when this field's visibility was widened for
+     * {@code com.latticejack.pqc.aiproxy} to reuse it (no live exploit today
+     * - every caller passes the result straight into
+     * SSLParameters.setNamedGroups(), which defensively clones - but no
+     * reason to leave a shared-mutable-state hazard sitting exposed once
+     * it's been named). {@link #namedGroups()} returns a fresh defensive
+     * copy instead.
      */
-    static final String[] NAMED_GROUPS = {"X25519MLKEM768", "secp256r1"};
+    private static final String[] NAMED_GROUPS = {"X25519MLKEM768", "secp256r1"};
 
-    static void install() {
+    /** Defensive copy - see {@link #NAMED_GROUPS}'s Javadoc for why this exists instead of a public field. */
+    public static String[] namedGroups() {
+        return NAMED_GROUPS.clone();
+    }
+
+    public static void install() {
         // Under GraalVM native-image, -Djava.util.logging.config.file is read
         // by LogManager's static initializer, which BC's own classes trigger
         // during --initialize-at-build-time=org.bouncycastle (baked into the
@@ -131,7 +161,7 @@ final class ProviderBootstrap {
     }
 
     /** Builds an SSLContext from BCJSSE explicitly - see class Javadoc for why this is required. */
-    static SSLContext buildContext() throws Exception {
+    public static SSLContext buildContext() throws Exception {
         String storeType = System.getProperty("javax.net.ssl.keyStoreType", KeyStore.getDefaultType());
 
         KeyManager[] keyManagers = null;

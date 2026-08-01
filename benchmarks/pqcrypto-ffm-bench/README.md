@@ -59,6 +59,26 @@ pqcrypto: fast but no more memory-safe than C in the hot path), and no
 lever tested here gets both simultaneously. A NEON-intrinsic RustCrypto
 implementation (unwritten, as lever 7 noted) would be the one that could.
 
+## JDK 25 re-baseline
+
+Same check as lever 5's ([`mlkem-ffm-bench/README.md`](../mlkem-ffm-bench/README.md#jdk-25-re-baseline)):
+the table above compares JDK 21 FFM numbers against JDK 25 BC/JDK-25-builtin
+numbers, a disclosed cross-JDK confound. Recompiled and reran on the same
+Azure Cobalt 100 VM and native library under JDK 25 (`openjdk 25.0.3`,
+no `--enable-preview`), 3 runs, correctness re-verified each run:
+
+| | keygen | encaps | decaps | **total** |
+|---|---|---|---|---|
+| JDK 21 (committed baseline, above) | 14.99 µs | 16.12 µs | 17.79 µs | **48.90 µs** |
+| JDK 25 (this re-baseline) | 14.98 µs | 16.20 µs | 17.93 µs | **49.11 µs** |
+| Delta | −0.1% | +0.5% | +0.8% | **+0.43%** |
+
+**+0.43% total — within noise, essentially identical.** Recomputed against
+the same JDK-25 BC/JDK-25-builtin baseline: **3.87x vs. BC / 3.58x vs.
+JDK 25-builtin** (was ~3.9x/~3.6x under the JDK 21 comparison — unchanged
+within rounding). Same conclusion as lever 5: the cross-JDK confound was
+real in principle but didn't move this result in practice.
+
 ## Reproducing
 
 ```bash
