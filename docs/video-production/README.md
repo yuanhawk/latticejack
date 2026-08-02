@@ -181,10 +181,50 @@ comment for why the China endpoint doesn't work.
   click Start. Used to confirm which Turnstile mode (real challenge vs.
   test auto-pass) is actually live before trusting either recording or
   restoration.
+- `gen_srt.py` — generates the YouTube subtitle file
+  (`output/latticejack-subtitles.srt`) from the exact narration text and
+  exact rendered mp3 durations, no external inputs needed. See "Subtitle
+  timing" below for the method and its real limitation.
 
-None of these four scripts are run automatically or on a schedule —
+None of these five scripts are run automatically or on a schedule —
 each is a manual, deliberate step in a supervised recording session, run
 with the site owner's explicit authorization each time.
+
+## Subtitle timing: estimated, not ASR-verified — and a real bug an independent Opus audit caught
+
+`gen_srt.py` has no word-level ground truth to sync against: DashScope's
+Paraformer speech-recognition API (which does return real word
+timestamps) is China-region only, and this project's `DASHSCOPE_API_KEY`
+is provisioned for the international region — confirmed incompatible
+this session, not assumed. Instead, each narration segment's known text
+is split into clause-sized chunks and each chunk gets a time span
+proportional to its character count within that segment's known,
+real, exact mp3 duration. This re-anchors at every segment boundary (six
+real, precisely-known start times), so timing error can't accumulate
+across the whole video — the risk is confined to *within* a single
+segment, where the proportional estimate assumes a constant speech rate
+with no pauses, which real TTS doesn't quite deliver.
+
+An independent Opus audit (instructed to verify the actual arithmetic
+and text reconstruction entry by entry, not just skim the file) confirmed
+text fidelity is exact (all 55 captions concatenate back to the source
+narration verbatim, including the intentional "dot"/"slash" -to-
+punctuation cleanup for URLs) and all six segment boundaries are
+internally consistent to the millisecond. It also found one real bug:
+a short fragment ("were identical,") landed as its own 0.875s
+caption — too fast to read — because the short-chunk-merge pass only
+tried merging within the normal display-length cap, and both of that
+fragment's neighbors were already near it, so the merge silently didn't
+happen. Fixed in `gen_srt.py` (a wider, dedicated cap for *only* the
+short-chunk-rescue case, since avoiding a sub-1s flash caption matters
+more than a few extra characters on that one line) and regenerated —
+shortest caption is now 1.25s.
+
+**Before trusting this for the actual upload:** spot-check a handful of
+captions against the real audio by ear, especially in the longer
+segments (segment 4, ~40s, has the most room for a mid-segment estimate
+to drift) — this method's own honest ceiling is realistic sync, not
+verified sync.
 
 **Not checked in:** the final ffmpeg compositing pass (cropping,
 speed-ramping, zoompan holds, PIL-generated text/chart overlays,
