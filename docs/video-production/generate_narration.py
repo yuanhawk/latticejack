@@ -45,6 +45,34 @@ VOICE = "longanyang"  # bilingual (zh/en) voice, reads English cleanly
 # (2:50) target - bumped to fit without cutting any narration text.
 SPEECH_RATE = 1.15
 
+# Real pronunciation bugs caught by the project owner watching the
+# published video with sound on - not caught earlier, since generating
+# audio doesn't include listening to it, and neither did the Opus/Fable
+# audits (they verified text/timing, not pronunciation - a different
+# failure mode this TTS voice apparently has for compound proper nouns:
+# already found and fixed once this session for "mlkem-native"/"GraalVM
+# native-image" in this same segment 03, and now again for three more
+# terms spanning nearly every segment):
+#   - "Azure" -> reportedly "Azour". Dropped from narration rather than
+#     respelled (the live-demo footage already shows "Azure" as on-screen
+#     text at the exact moment this line plays, so nothing factual is
+#     lost - same "it's legible on screen, doesn't need to be spoken
+#     correctly too" reasoning as the earlier mlkem-native/GraalVM fix).
+#   - "Arm64" -> reportedly "Arma 64" (an inserted vowel, as if the model
+#     is trying to pronounce it as one unfamiliar token). Respelled
+#     "Arm 64" (explicit space) throughout every occurrence - splits it
+#     into two tokens the model should already know how to say.
+#   - "Latticejack" (this project's own name) -> reportedly "Lattisjack".
+#     Respelled "Lattice Jack" (space-separated) throughout every
+#     occurrence, including inside the phonetically-spelled URLs.
+# Both respellings are TTS-input-only - gen_srt.py's clean_display()
+# collapses them back to the correct written form ("Arm64",
+# "Latticejack") for the actual subtitle text, the same mechanism
+# already used for "dot"/"slash" in URLs. NOT re-confirmed correct by
+# ear after this fix (still can't listen) - re-check needed before
+# treating this as resolved, same disclosure as every pronunciation fix
+# in this file.
+#
 # (filename, target beat, budget_seconds, narration text) - text copied
 # verbatim from docs/demo-video-script.md's own narration blocks, nothing
 # paraphrased here so the two never drift.
@@ -55,16 +83,16 @@ SEGMENTS = [
         15,
         "Java shops migrating to post-quantum crypto have no real "
         "playbook. The migration path is undocumented, and nobody's "
-        "measured what it actually costs on Arm64, the architecture a "
-        "growing share of cloud AI infrastructure runs on. Latticejack "
+        "measured what it actually costs on Arm 64, the architecture a "
+        "growing share of cloud AI infrastructure runs on. Lattice Jack "
         "is that playbook: a working migration, benchmarked and "
-        "optimized entirely on real Arm64 hardware.",
+        "optimized entirely on real Arm 64 hardware.",
     ),
     (
         "02_its_real_part1",
         "0:15-0:40",
         25,
-        "Click Start, and this boots a real Azure Arm64 VM, on demand, "
+        "Click Start, and this boots a real Arm 64 VM, on demand, "
         "and streams its raw output back to this page, not a recording, "
         "not simulated. Classical TLS, then hybrid post-quantum TLS, "
         "both running live, both self-verifying. That line matters: it "
@@ -78,7 +106,7 @@ SEGMENTS = [
         30,
         "Going hybrid nearly doubles handshake latency on real hardware, "
         "46 to 89 milliseconds at the median. So we measured eight "
-        "different ways to claw that back, on the same real Arm64 "
+        "different ways to claw that back, on the same real Arm 64 "
         "silicon, not a laptop. Two came back null, reported as "
         "findings, not hidden. And two gave real wins, both named on "
         "screen: a hand-tuned NEON assembly library, four times faster "
@@ -107,7 +135,7 @@ SEGMENTS = [
         "05_ai_workload",
         "1:45-2:10",
         25,
-        "This is what actually makes Latticejack an AI solution, not "
+        "This is what actually makes Lattice Jack an AI solution, not "
         "just a crypto migration that happens to run on Arm: a real, "
         "quantized language model served by llama.cpp with Arm's own "
         "KleidiAI acceleration, verified actually engaged, sitting "
@@ -122,10 +150,10 @@ SEGMENTS = [
         20,
         "Eight optimization levers, a real security bug found and fixed "
         "by an AI audit, and a real AI workload running behind the "
-        "migration it's pitching, all on real Arm64 hardware, all "
-        "self-verifying, and all one click away at latticejack dot "
-        "itinerario dot io. Latticejack, github dot com slash yuanhawk "
-        "slash latticejack.",
+        "migration it's pitching, all on real Arm 64 hardware, all "
+        "self-verifying, and all one click away at lattice jack dot "
+        "itinerario dot io. Lattice Jack, github dot com slash yuanhawk "
+        "slash lattice jack.",
     ),
 ]
 

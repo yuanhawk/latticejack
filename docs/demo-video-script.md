@@ -71,12 +71,24 @@ silent fallback to secp256r1.
 ```
 
 **Narration (over the boot montage, then the real-time VERIFIED lines):**
-> "Click Start, and this boots a real Azure Arm64 VM, on demand, and
+> "Click Start, and this boots a real Arm64 VM, on demand, and
 > streams its raw output back to this page — not a recording, not
 > simulated. Classical TLS, then hybrid post-quantum TLS, both running
 > live, both self-verifying. That line matters: it doesn't just check the
 > handshake completed, it checks the post-quantum group actually
 > negotiated, not a silent fallback to classical."
+
+**Update: "Azure" dropped from this line.** The project owner caught,
+watching the published video with sound on, that this TTS voice
+mispronounces "Azure" (reportedly as "Azour") — a real bug, not caught
+earlier since generating audio doesn't include listening to it. Dropped
+rather than respelled: the live-demo footage playing at this exact
+moment already shows "Azure" as real on-screen text (the page's own copy
+literally says "Clicking Start boots a real Azure VM"), so the spoken
+line doesn't need to repeat it to keep the claim intact. Full account,
+including two other terms fixed the same way (`Arm64`, and this
+project's own name), in `docs/video-production/generate_narration.py`'s
+header comment and `docs/video-production/README.md`.
 
 ---
 

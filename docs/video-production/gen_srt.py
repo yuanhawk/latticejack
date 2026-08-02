@@ -11,32 +11,37 @@ import re
 # (segment_start_s, segment_duration_s, spoken_text) - spoken_text is
 # copied verbatim from generate_narration.py's SEGMENTS (the exact text
 # actually sent to TTS), start/duration from the exact rendered mp3s.
+# start_s/duration_s below are placeholders re-computed from the actual
+# rendered mp3s after regenerating audio for the pronunciation fix (see
+# generate_narration.py's header comment) - update via the driver script
+# before running this standalone, or just call gen_srt() from Python
+# after regeneration with the real values.
 SEGMENTS = [
-    (0.0, 20.043875,
+    (0.0, 20.566313,
      "Java shops migrating to post-quantum crypto have no real "
      "playbook. The migration path is undocumented, and nobody's "
-     "measured what it actually costs on Arm64, the architecture a "
-     "growing share of cloud AI infrastructure runs on. Latticejack "
+     "measured what it actually costs on Arm 64, the architecture a "
+     "growing share of cloud AI infrastructure runs on. Lattice Jack "
      "is that playbook: a working migration, benchmarked and "
-     "optimized entirely on real Arm64 hardware."),
-    (20.043875, 24.066750,
-     "Click Start, and this boots a real Azure Arm64 VM, on demand, "
+     "optimized entirely on real Arm 64 hardware."),
+    (20.566313, 23.335313,
+     "Click Start, and this boots a real Arm 64 VM, on demand, "
      "and streams its raw output back to this page, not a recording, "
      "not simulated. Classical TLS, then hybrid post-quantum TLS, "
      "both running live, both self-verifying. That line matters: it "
      "doesn't just check the handshake completed, it checks the "
      "post-quantum group actually negotiated, not a silent fallback "
      "to classical."),
-    (44.110625, 27.149188,
+    (43.901626, 27.462688,
      "Going hybrid nearly doubles handshake latency on real hardware, "
      "46 to 89 milliseconds at the median. So we measured eight "
-     "different ways to claw that back, on the same real Arm64 "
+     "different ways to claw that back, on the same real Arm 64 "
      "silicon, not a laptop. Two came back null, reported as "
      "findings, not hidden. And two gave real wins, both named on "
      "screen: a hand-tuned NEON assembly library, four times faster "
      "per operation; and ahead-of-time native compilation, "
      "seven-point-nine times faster cold start."),
-    (71.259813, 40.419375,
+    (71.364314, 40.419375,
      "Here's what makes this different from a typical benchmark "
      "project: every claim in this repo was adversarially re-checked "
      "by independent AI models, run blind to each other, the same "
@@ -50,8 +55,8 @@ SEGMENTS = [
      "cost. That discipline runs through this whole project: every "
      "place a measurement turned out wrong, that's documented, not "
      "quietly corrected."),
-    (111.679188, 25.712438,
-     "This is what actually makes Latticejack an AI solution, not "
+    (111.783689, 25.999813,
+     "This is what actually makes Lattice Jack an AI solution, not "
      "just a crypto migration that happens to run on Arm: a real, "
      "quantized language model served by llama.cpp with Arm's own "
      "KleidiAI acceleration, verified actually engaged, sitting "
@@ -59,13 +64,13 @@ SEGMENTS = [
      "handshake cost is about eleven times smaller than the AI "
      "request it fronts. And the VM deallocates itself when it's "
      "done, no idle cost between demos."),
-    (137.391626, 19.573688,
+    (137.783502, 20.017750,
      "Eight optimization levers, a real security bug found and fixed "
      "by an AI audit, and a real AI workload running behind the "
-     "migration it's pitching, all on real Arm64 hardware, all "
-     "self-verifying, and all one click away at latticejack dot "
-     "itinerario dot io. Latticejack, github dot com slash yuanhawk "
-     "slash latticejack."),
+     "migration it's pitching, all on real Arm 64 hardware, all "
+     "self-verifying, and all one click away at lattice jack dot "
+     "itinerario dot io. Lattice Jack, github dot com slash yuanhawk "
+     "slash lattice jack."),
 ]
 
 MAX_CHARS = 68  # per caption (YouTube convention: ~2 short lines)
@@ -139,7 +144,13 @@ def merge_short_chunks(chunks, min_len=20):
 
 
 def clean_display(text):
-    """TTS-phonetic spellings back to natural written form for display."""
+    """TTS-phonetic spellings back to natural written form for display.
+    Order matters: collapse "Lattice Jack"/"lattice jack" before the dot
+    cleanup, so "lattice jack dot itinerario dot io" -> "latticejack.
+    itinerario.io" comes out right rather than leaving a stray space."""
+    text = text.replace("Lattice Jack", "Latticejack")
+    text = text.replace("lattice jack", "latticejack")
+    text = text.replace("Arm 64", "Arm64")
     text = text.replace(" dot ", ".")
     text = text.replace(" slash ", "/")
     return text

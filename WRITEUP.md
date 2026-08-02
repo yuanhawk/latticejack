@@ -796,9 +796,8 @@ final numbers), DashScope-generated title cards, DashScope TTS
 narration. Full production account, including two real bugs found and
 fixed doing it for real (a long dead/frozen stretch that got cut rather
 than papered over, and TTS mispronouncing technical jargon that got
-reworded) - see `docs/video-production/README.md`. [Link to be added
-once uploaded to YouTube/Vimeo/Youku per the official rules' publication
-requirement.]
+reworded) - see `docs/video-production/README.md`. Live on YouTube:
+[youtu.be/E66YU0AVoE8](https://youtu.be/E66YU0AVoE8).
 
 **Update: the repository is now public.** This section originally flagged
 it as private and blocking - checked again directly via `gh repo view`,

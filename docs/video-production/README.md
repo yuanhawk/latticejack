@@ -160,6 +160,51 @@ clip's "Verifying..." to the automated session's own "Run in progress"
 panel, with neither session's ID ever appearing adjacent to the other's
 UI state.
 
+## Pronunciation bugs found by the project owner after publishing (watching with sound on)
+
+Neither Claude nor the Opus/Fable audits can listen to generated audio —
+every check this pipeline ran (text fidelity, timing arithmetic, waveform
+shape) is blind to *mispronunciation* specifically, a real gap in what
+"verify, don't assume" could actually cover here. This TTS voice
+(`cosyvoice-v3-flash`, bilingual zh/en, not an English specialist - see
+`generate_narration.py`'s own header comment) had already mangled
+`mlkem-native`/`GraalVM native-image` once this session (fixed by
+rewording, documented in `demo-video-script.md`). After the video was
+published to YouTube, the project owner caught it doing the same thing
+to three more terms - including this project's own name - watching the
+actual upload with sound on:
+
+- **"Azure"** → reportedly "Azour". Dropped from the segment 2 narration
+  entirely rather than respelled - the live-demo footage playing at that
+  exact moment already shows "Azure" as real on-screen page text, so
+  nothing factual is lost by not also saying it. `demo-video-script.md`'s
+  narration blockquote updated to match (a real content change, not just
+  a TTS-input respelling).
+- **"Arm64"** (5 occurrences, every segment but one) → reportedly
+  "Arma 64" (an inserted vowel, as if the model tried to pronounce the
+  whole compound as one unfamiliar token). Respelled `Arm 64` (explicit
+  space) in the TTS input, every occurrence.
+- **"Latticejack"** (this project's own name, 4 occurrences including
+  inside the phonetically-spelled URLs) → reportedly "Lattisjack".
+  Respelled `Lattice Jack` (space-separated) in the TTS input, every
+  occurrence.
+
+Both respellings are TTS-input-only - `gen_srt.py`'s `clean_display()`
+collapses them back to the correct written form for the actual subtitle
+file, the same mechanism already used for "dot"/"slash" in URLs.
+**Not re-confirmed correct by ear after this fix** - still can't listen;
+re-check needed, same disclosure as every pronunciation fix in this
+project.
+
+Fixing this touched every segment but one (`04_ai_audit_bug`, the only
+segment with none of these terms), which meant every segment's audio
+duration changed, which cascaded through the entire video timeline -
+every part's target duration, several holds, the chart crossfade, and
+both title cards all had to be re-trimmed to match. The subtitle file
+was regenerated from the new segment start times/durations for the same
+reason. **The previously-uploaded YouTube video needs to be replaced
+with this new render** - the audio itself changed, not just metadata.
+
 ## Tools
 
 Setup: `pip install -r requirements.txt && playwright install chromium`.
