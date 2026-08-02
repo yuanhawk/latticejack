@@ -793,11 +793,14 @@ commands: real screen capture of a real Azure VM run through
 `latticejack.itinerario.io` (Turnstile solved by a real human, all four
 stages passing, a real AI reply through the encrypted channel, real
 final numbers), DashScope-generated title cards, DashScope TTS
-narration. Full production account, including two real bugs found and
-fixed doing it for real (a long dead/frozen stretch that got cut rather
-than papered over, and TTS mispronouncing technical jargon that got
-reworded) - see `docs/video-production/README.md`. Live on YouTube:
-[youtu.be/E66YU0AVoE8](https://youtu.be/E66YU0AVoE8).
+narration. Full production account, including several real bugs found
+and fixed doing it for real - a long dead/frozen stretch that got cut
+rather than papered over, TTS mispronouncing technical jargon that got
+reworded, and three more mispronunciations (including this project's own
+name) the project owner caught watching the first published upload with
+sound on, which required replacing that upload - see
+`docs/video-production/README.md`. Live on YouTube:
+[youtu.be/q9-zN3HJJPE](https://youtu.be/q9-zN3HJJPE).
 
 **Update: the repository is now public.** This section originally flagged
 it as private and blocking - checked again directly via `gh repo view`,
