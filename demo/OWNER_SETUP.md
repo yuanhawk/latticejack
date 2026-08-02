@@ -224,7 +224,7 @@ this, not re-provisioned each time.
    local mock-sink tests, which don't create this file). Create it once:
    ```bash
    sudo tee /etc/latticejack-demo.env > /dev/null <<'EOF'
-   INGEST_URL=https://demo.itinerario.io/api/ingest   # set once §3's domain is live - see below
+   INGEST_URL=https://latticejack.itinerario.io/api/ingest   # set once §3's domain is live - see below
    LATTICEJACK_LLAMA_URL=http://127.0.0.1:8090
    LLAMA_SERVER_BIN=/opt/latticejack-demo-src/component-ai/llama.cpp/build/bin/llama-server
    LLAMA_MODEL_PATH=/opt/latticejack-demo-src/component-ai/models/Llama-3.2-1B-Instruct-Q4_0.gguf
@@ -255,16 +255,20 @@ this, not re-provisioned each time.
 
 ## 3. Cloudflare setup
 
-1. **Workers Paid plan — hard gate, not optional.** `demo/worker` uses a
-   Durable Object (`DemoOrchestrator`) as its whole state-machine/session
-   store. **Durable Objects require a Workers Paid plan.** If you're on
-   the free plan, `wrangler deploy` will fail (or the DO binding will be
-   rejected) — upgrade the account before attempting deployment, not
-   after hitting the error.
+1. **Workers Paid plan — not required.** An earlier draft of this checklist
+   claimed Durable Objects need a Workers Paid plan; checked directly
+   against Cloudflare's current pricing docs and that's no longer (or
+   wasn't ever, for this config) accurate. `wrangler.toml`'s migration
+   already declares `DemoOrchestrator` under `new_sqlite_classes` (not
+   `new_classes`), and Durable Objects with the SQLite storage backend are
+   available on the **Workers Free plan** — free-tier caps (100k
+   requests/day, 13,000 GB-s/day DO compute, 1,000 KV writes/day) are all
+   far above what a judge-triggered demo actually needs. No billing action
+   required before deploying.
 
-2. **DNS / domain.** Decide where this gets hosted under `itinerario.io`
-   (e.g. `demo.itinerario.io`) and set up that DNS record pointing at the
-   Worker, either via a Cloudflare-managed zone + Worker route, or the
+2. **DNS / domain.** This is hosted at `latticejack.itinerario.io` — set up
+   that DNS record pointing at the Worker, either via a Cloudflare-managed
+   zone + Worker route, or the
    `custom_domain` route block already stubbed (commented out) in
    `demo/worker/wrangler.toml`'s inline TODO. This domain is what you'll
    set as `INGEST_URL` on the VM (§2.6 above) and is the URL judges will
@@ -310,14 +314,18 @@ this, not re-provisioned each time.
 
 ## 4. What to test first, and what to watch for specifically
 
-Once §1–3 are done and `wrangler deploy` has been run:
+**Update: this has now been done for real.** §1–3 are complete, the
+Worker is deployed at `latticejack.itinerario.io`, and a full real
+end-to-end run has succeeded — see `demo/README.md`'s "Then deployed live
+and run for real" section for the complete account. The predictions below
+turned out to matter in a slightly different order than expected, so both
+are kept: the original guidance (still correct advice for anyone
+redeploying this from scratch) and what actually happened.
 
 1. **Basic surface first, cheaply:** load the frontend URL, confirm the
-   static page renders and Turnstile's widget actually shows (this is the
-   one piece that categorically could not be tested locally — local dev
-   only exercised the server-side `siteverify` call against Cloudflare's
-   documented always-pass test credentials, never a real widget in a real
-   browser).
+   static page renders and Turnstile's widget actually shows. **What
+   happened:** confirmed working — real sessions were only ever creatable
+   because a real human solved the real widget in a real browser.
 
 2. **One full end-to-end run, watched closely, specifically for this:**
    this project's own build process flagged the Run Command
@@ -327,21 +335,25 @@ Once §1–3 are done and `wrangler deploy` has been run:
    mode where a plain `nohup ... & disown` gets silently reaped by the
    Azure guest agent's session teardown right after the Run Command's own
    top-level script returns, killing `run-demo.sh` before it can do
-   anything. This has never been exercised against a real Azure guest
-   agent — only reasoned about and documented.
+   anything.
 
-   **On the first live run, watch specifically for:** does `/api/log`
-   (or the frontend's log pane) start showing `stage_start`/`log_chunk`
-   events promptly after the VM reports `PowerState/running` — i.e., does
-   ingest data actually arrive at all? If it doesn't, the two most likely
-   explanations are (a) the spawn got reaped despite the systemd-run
-   guard — check the VM directly for a `latticejack-demo-<session>.scope`
-   unit or a live `run-demo.sh` process, and (b) `INGEST_URL`/network
-   reachability from §2.7 above. Do **not** assume it's a code bug in
-   `run-demo.sh` itself first — that script's own logic was exercised
-   thoroughly against a local mock ingest sink (see `demo/README.md`);
-   the untested part is specifically getting it *launched and kept alive*
-   by Azure's Run Command mechanism.
+   **What actually happened, on the very first live run:** the dispatch
+   mechanism itself worked correctly — `run-demo.sh` genuinely launched
+   via `systemd-run --scope` (confirmed via the VM's own `systemd
+   journal`), no reaping, exactly as designed. But `/api/log` still showed
+   zero events, for a different, mundane reason: `/etc/latticejack-demo.env`
+   on the VM was missing `INGEST_URL` entirely (stale from before this
+   section's own heredoc, below, was finalized — never refreshed on the
+   actual VM after the fact). `run-demo.sh` exits on its very first check
+   if `INGEST_URL` is unset, before it can even POST a `failed` event,
+   which is exactly consistent with the total silence observed. Fixed by
+   correcting the file on the VM directly (matching the heredoc in §2.6
+   below exactly) and re-verified with a full passing run. **Lesson for
+   next time this is redeployed:** if `/api/log` stays empty after a real
+   Run Command dispatch, check `/etc/latticejack-demo.env` on the VM
+   itself first (`cat` it, compare against §2.6's heredoc) before
+   suspecting the dispatch mechanism — the mechanism itself is now proven
+   working, an env-file drift is the more likely culprit.
 
    If nothing arrives, the DO's own dead-man's-switch (the alarm's
    3-minute silence timeout, `DEMO_SILENCE_TIMEOUT_SECONDS`) will fire and
@@ -356,11 +368,20 @@ Once §1–3 are done and `wrangler deploy` has been run:
    ongoing cost near zero between demos, and it's independently enforced
    twice (the DO's own completion path, and the cron dead-man's-switch as
    a backstop) specifically so a single bug in either one doesn't leave
-   the VM running.
+   the VM running. **Done:** confirmed via `az vm show --show-details`
+   after the real successful run above — `PowerState/deallocated`, also
+   independently visible via the Worker's own `/api/status`.
 
-4. **Rate limits and spectator mode:** trigger the daily cap
-   (`DEMO_DAILY_CAP`, default 20) and per-IP hourly cap
+4. **Rate limits and spectator mode — still not tested.** Trigger the
+   daily cap (`DEMO_DAILY_CAP`, default 20) and per-IP hourly cap
    (`DEMO_PER_IP_HOURLY_CAP`, default 3) at least once deliberately in a
    low-stakes test, and confirm a second browser tab hitting "Start"
    while a session is active correctly attaches as a spectator to the
    same session instead of starting a duplicate one.
+
+5. **Not yet tested: the cron dead-man's-switch firing for real.** It's
+   deployed (`[triggers] crons = ["*/15 * * * *"]` in `wrangler.toml`) but
+   hasn't been separately observed firing — the alarm-based retry path
+   above is the primary mechanism and has been proven working, so this is
+   a backstop-of-a-backstop, low risk but worth a look if there's time
+   before judging.

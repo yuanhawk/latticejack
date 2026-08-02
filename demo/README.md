@@ -12,35 +12,40 @@ them on demand and stream what they print to a browser, live, with nothing
 paraphrased — the frontend's verdict panel only ever renders the literal
 `VERIFIED:` / `VERIFICATION FAILED:` lines those scripts already print.
 
-## Current state: built; VM side verified on real Azure hardware; Cloudflare side not yet deployed
+## Current state: deployed and live at latticejack.itinerario.io — end-to-end success confirmed on real infrastructure
 
-Both halves of this feature are code-complete:
+Both halves of this feature are built, deployed, and have each been
+individually proven against real infrastructure (Azure and Cloudflare, not
+mocks/local substitutes) — see "What's actually been verified, and how"
+below for the full account, including two real bugs found and fixed doing
+this for real rather than by re-reading the design. The short version:
 
-- **`demo/run-demo.sh`** (this directory) — the VM-side wrapper. Starts
-  `llama-server`, builds the project once, runs the four demo scripts in
-  order, and streams progress as JSON events over HTTPS. **This half has
-  now been run end-to-end on a real Azure Cobalt 100 VM** — see "What's
-  actually been verified, and how" below. The one part of it still
-  untested is the Azure Run Command dispatch mechanism itself (this
-  script was invoked directly over SSH for verification, not launched via
-  `az vm run-command`), which requires a live Worker to exercise for real.
-- **`demo/worker/`** — a Cloudflare Worker (Durable Object + cron) that
-  receives those events, runs the state machine (idle → starting → running
-  → deallocating → done), enforces rate limits, and serves the frontend a
-  judge actually watches. See [`demo/worker/README.md`](worker/README.md)
-  for its architecture, HTTP API surface, and the ingest wire contract in
-  full — that document is the source of truth for both halves, not
-  re-explained here. **This half has not been exercised against real
-  Cloudflare infrastructure** — no Cloudflare account exists in the
-  environment it was built in.
+- **`demo/run-demo.sh`** (this directory) — the VM-side wrapper — has run
+  to full completion on the real Azure Cobalt 100 VM, all four stages
+  passing, including a real AI reply through the PQC-encrypted channel.
+- **`demo/worker/`** — the Cloudflare Worker (Durable Object + cron) — is
+  deployed live at `latticejack.itinerario.io`, and its Durable Object
+  state machine, alarm-based retry loop, real AAD token/VM start/VM
+  deallocate calls, and Turnstile-gated `/api/start` have all been
+  observed working against real Azure and Cloudflare infrastructure, not
+  simulated.
+- The one nuance worth stating precisely rather than rounding up: every
+  fully-successful run observed so far involved a manual mid-flight fix
+  (a stale VM-side env file) and a manual re-dispatch of `run-demo.sh`
+  with the same session id/token Azure's real Run Command dispatch had
+  already minted — not a single, fully unassisted click-to-success run.
+  Both halves of that gap are independently proven (the real Run Command
+  dispatch mechanism *does* successfully launch the script — confirmed via
+  the VM's own systemd journal for the first, pre-fix attempt; the script
+  itself, once launched, *does* run correctly to full success — confirmed
+  via the fixed second attempt) but a genuinely clean one-click run from a
+  cold `failed`/`idle` state hasn't been separately observed yet. Worth
+  doing once before relying on this for judges.
 
-Getting the Cloudflare half from "code-complete" to "actually live"
-requires a human with real credentials to work through
-**[`demo/OWNER_SETUP.md`](OWNER_SETUP.md)** — the concrete, ordered
-checklist for the Azure custom-role/service-principal setup, VM
-preparation, and Cloudflare account/secrets/DNS work, plus what to test
-first once it's deployed and the one specific failure mode
-(`OWNER_SETUP.md` §4) most worth watching for on the first live run.
+See **[`demo/OWNER_SETUP.md`](OWNER_SETUP.md)** for the concrete setup
+checklist this deployment followed (Azure custom-role/service-principal
+setup, VM preparation, Cloudflare account/secrets/DNS work), kept up to
+date as the source of truth for how to reproduce or redeploy this.
 
 ## Architecture, in one paragraph
 
@@ -153,65 +158,118 @@ credentials, then a full accepted event sequence, confirmed via
 injectable fake `fetch`) both pass. Full detail:
 [`demo/worker/README.md`](worker/README.md#whats-actually-been-verified-vs-not).
 
+### Then deployed live and run for real, against real Azure and real Cloudflare
+
+`wrangler deploy` shipped the Worker to `latticejack.itinerario.io` (a
+zone already on this Cloudflare account's nameservers), with a real
+SQLite-backed Durable Object, a real KV namespace, real Worker secrets
+(`AZURE_CLIENT_SECRET`, `TURNSTILE_SECRET_KEY`), and a real Turnstile
+widget registered for that domain — none of it simulated. One correction
+made along the way: an earlier version of `OWNER_SETUP.md` claimed
+Durable Objects require a Workers Paid plan; checked directly against
+Cloudflare's current pricing docs, that's not accurate for a
+SQLite-backed DO (`new_sqlite_classes`, which is what this project already
+uses) — those are available on the Workers Free plan, so no billing
+upgrade was needed.
+
+The first real click-to-start attempt surfaced a real, live failure:
+`fetchAadToken` got a `401` from AAD. Root-caused as a stale/mismatched
+`AZURE_CLIENT_SECRET` — fixed by resetting the app registration's
+credential and re-uploading it. That surfaced a second, subtler thing:
+Azure app-registration secret resets are not instant — a freshly reset
+secret was rejected by AAD's own token endpoint for several minutes even
+when tested directly with `curl`, bypassing the Worker entirely, before
+starting to work. (Resetting again mid-wait just restarts that clock —
+worth knowing if this ever needs debugging again.) Once a reset secret
+was left untouched for ~15–20 minutes, the Durable Object's own alarm
+(observed firing for real, every 45s, via `wrangler tail`) retried the
+stuck `deallocating` state on its own and reached a clean terminal
+`failed`, confirming the whole alarm-retry/cleanup loop works
+unattended, not just in the `decideAlarmAction` unit tests.
+
+The next real attempt got further — real AAD token, real `startVm`, VM
+reached `PowerState/running`, and the real `dispatchRunCommand` call
+succeeded (confirmed independently via the VM's own `systemd journal`,
+not just the Worker's optimistic 202-Accepted) — but zero `/api/ingest`
+events ever arrived, and the session timed out on the Worker's own
+3-minute silence dead-man's-switch. SSH'd into the VM (while it was still
+up, before the Worker's cron/alarm could deallocate it) and found the
+real cause: `/etc/latticejack-demo.env` was missing `INGEST_URL` entirely
+— a leftover from before `OWNER_SETUP.md` §2.6's current heredoc was
+finalized, never refreshed since. `run-demo.sh` checks for `INGEST_URL`
+and exits before doing anything else if it's unset, which is exactly
+consistent with the observed total silence (it never even got far enough
+to POST its own `failed` event, since posting also needs `INGEST_URL`).
+Fixed the file on the VM directly, then — rather than spend a whole new
+VM billing cycle — re-dispatched `run-demo.sh` by hand over SSH with the
+same session id/token the real Run Command dispatch had already minted
+(visible in the systemd journal, since Run Command surfaces argv there),
+letting the already-running Worker session pick up genuine progress.
+
+**Result: full success.** All four stages (`before`, `after`, `nativekem`,
+`ai`) ran and passed for real, streamed live through the deployed Worker,
+polled from `/api/status`/`/api/log` exactly as a judge's browser would.
+A real model reply came back through the PQC-encrypted channel
+(`handshake_ms=296.8, request_to_response_ms=3043, ratio=0.098`, ~10.3x —
+consistent with prior real-hardware numbers), the HelloRetryRequest
+check confirmed real X25519MLKEM768 negotiation, and the VM deallocated
+itself cleanly afterward (`vmPowerState: PowerState/deallocated`,
+confirmed via the Worker's own status endpoint, not just assumed).
+
 ## What is not yet verified
 
-Stated plainly, not rounded up to "done":
+Stated plainly, not rounded up to "done". Most of this list is now
+resolved — see "Then deployed live and run for real" above for how each
+item below was actually settled, not just re-reasoned about:
 
-- **No real Azure ARM/AAD call has ever succeeded** — no credentials exist
-  in either build environment. `fetchAadToken`/`startVm`/`deallocateVm`/
-  `getInstanceViewPowerState` are unit-tested with a fake `fetch`
-  (`demo/worker/test/azure.test.ts`) and were exercised against
-  placeholder-credential *failure* responses during local `wrangler dev`
-  testing (real 404s from AAD, handled gracefully, no crash) — but never
-  against a real subscription.
-- **The Run Command `systemd-run`/`setsid` *dispatch mechanism itself* has
-  never been exercised against a real Azure guest agent.** Still the
-  single highest-risk untested detail in the whole design (`src/azure.ts`'s
-  own comment, `OWNER_SETUP.md` §4) — the guard exists to avoid a specific
-  known failure mode (a plain `nohup ... & disown` spawn getting silently
-  reaped when the Run Command's own top-level script returns), but whether
-  it actually works has only been reasoned about, never observed. What
-  *has* now been verified (see above): `run-demo.sh` itself, once
-  launched, runs correctly end to end on the real VM with a
-  Run-Command-*like* minimal environment (`env -i` plus only the two
-  positional args and `INGEST_URL`) — so if the first live Run Command
-  dispatch fails, `OWNER_SETUP.md` §4's own advice holds: suspect the
-  *launch*, not this script's internal logic, which is the part now
-  actually proven on this hardware.
-- **The DO's alarm has never fired on a real 30–90s+ timer.** Miniflare
-  doesn't auto-fire Durable Object alarms without manually advancing
-  simulated time, which wasn't set up. The alarm's decision logic
-  (`decideAlarmAction`) is unit-tested in isolation — 11 passing cases
-  covering the hard-cap, silence-timeout, idle, and deallocating branches
-  — but never observed running on a real clock against a real DO.
-- **The cron dead-man's-switch (`scheduled()` in `worker.ts`) has never
-  fired for real.** Miniflare logs that it doesn't auto-trigger scheduled
-  handlers, and `wrangler dev --test-scheduled` wasn't additionally run.
-  Its sub-pieces (`fetchAadToken`, `getInstanceViewPowerState`,
-  `deallocateVm`) are the same functions covered by the Azure unit tests
-  above, but the trigger path itself is unverified.
-- **No real Turnstile widget has ever rendered or been solved by a human
-  in a browser.** Only the server-side `siteverify` call was exercised,
-  against Cloudflare's documented test credentials — never the actual
-  client-side widget on the actual frontend HTML.
-- **Update: `run-demo.sh`'s own `llama-server`-startup code path is now
-  fully exercised — resolved, not just a smaller remaining gap.** At the
-  time this was first written, no GGUF model was available in the
-  environment `run-demo.sh` was built in, so the "start `llama-server`,
-  wait for `/health`, grep the verbose log for KleidiAI engagement"
-  sequence was only verified via the "not configured, skip cleanly" path
-  and an opportunistic pre-existing `llama-server`. Since then, on the
-  real Azure VM (see above), this script's own code was confirmed
-  actually launching a fresh `llama-server` process itself with
-  `LLAMA_SERVER_BIN`/`LLAMA_MODEL_PATH` read from `/etc/latticejack-demo.env`,
-  waiting for `/health`, and correctly grepping the real KleidiAI
-  engagement signal out of its own verbose log.
+- **Resolved: real Azure ARM/AAD calls.** `fetchAadToken`, `startVm`,
+  `getInstanceViewPowerState`, and `deallocateVm` have all now succeeded
+  for real against the live subscription — a VM was genuinely started,
+  polled to `PowerState/running`, and later confirmed
+  `PowerState/deallocated`, all through these exact functions running in
+  the deployed Worker, not the unit-tested fake-`fetch` path.
+- **Resolved: the Run Command dispatch mechanism.** Confirmed via the
+  VM's own `systemd journal`, independent of the Worker's own optimistic
+  202-Accepted response, that a real `dispatchRunCommand` call really did
+  launch `run-demo.sh` via `systemd-run --scope` on the real guest agent.
+  One nuance still open: the specific run that dispatch launched failed
+  early (the `INGEST_URL` bug, since fixed) — so no single run has yet
+  been *both* triggered by a real fresh Run Command dispatch *and* run to
+  full success in one unassisted shot. Each half is independently proven;
+  the combination is likely but not yet separately observed.
+- **Resolved: the DO's alarm firing on a real timer.** Watched fire
+  repeatedly for real, every 45s, via `wrangler tail` — including
+  correctly retrying a stuck `deallocating` state across multiple ticks
+  until an Azure-side condition (a propagating credential) cleared, then
+  reaching a clean terminal state on its own, unattended.
+- **Resolved: a real Turnstile widget, rendered and solved by a human in
+  a real browser.** Multiple real sessions were created via `/api/start`
+  during this verification, which is only possible if `verifyTurnstile`
+  accepted a real, human-solved token from the real widget — not just the
+  server-side `siteverify` call against Cloudflare's test credentials.
+- **Resolved (already noted previously): `run-demo.sh`'s own
+  `llama-server`-startup code path.** Confirmed again on this deployment:
+  a fresh `llama-server` process started for real from
+  `LLAMA_SERVER_BIN`/`LLAMA_MODEL_PATH`, KleidiAI engagement confirmed via
+  a real model reply, not a placeholder.
+- **Still open: the cron dead-man's-switch (`scheduled()` in
+  `worker.ts`) has never fired for real.** Its sub-pieces
+  (`fetchAadToken`, `getInstanceViewPowerState`, `deallocateVm`) are the
+  same functions now proven working via the alarm path above, but the
+  15-minute cron trigger itself hasn't been separately observed firing.
+  Low risk (the alarm is the primary mechanism; cron is a backstop for if
+  the alarm itself is broken) but genuinely unobserved.
+- **Still open: a single, fully unassisted click-to-success run.** As
+  described above, every fully-successful run so far involved a manual
+  mid-flight env-file fix and a manual re-dispatch. Worth running once
+  more, cleanly, before relying on this for judges — see the note at the
+  top of this file.
 
-None of the above blocks getting this deployed — they're exactly the set
-of things that categorically cannot be verified without real Azure/
-Cloudflare credentials and a real target VM, which is why
-`OWNER_SETUP.md` exists as a separate, explicit handoff rather than this
-being silently assumed to work.
+None of the above blocks this being genuinely live and working — the
+feature is deployed and has demonstrably worked end to end. The two
+remaining open items are narrow and low-risk (a 15-minute cron backstop,
+and one more clean unassisted run to fully close the loop), not gaps in
+whether the core design works.
 
 ## Design decisions worth knowing before changing anything here
 

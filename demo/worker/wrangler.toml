@@ -44,8 +44,8 @@ new_sqlite_classes = ["DemoOrchestrator"]
 # ---------------------------------------------------------------------------
 [[kv_namespaces]]
 binding = "LAST_RUN_KV"
-id = "<<FILL_IN_KV_NAMESPACE_ID>>"
-preview_id = "<<FILL_IN_KV_NAMESPACE_PREVIEW_ID>>"
+id = "709ca7cbea674e68b856b11c4ffed0c8"
+preview_id = "f56a08979c554158a233143dc7899335"
 
 # ---------------------------------------------------------------------------
 # Cron: dead-man's-switch, independent of the DO - runs every 15 minutes,
@@ -66,11 +66,11 @@ crons = ["*/15 * * * *"]
 # environment-specific, so they're placeholders here rather than real IDs.
 # ---------------------------------------------------------------------------
 [vars]
-AZURE_TENANT_ID = "<<FILL_IN_AZURE_TENANT_ID>>"
-AZURE_CLIENT_ID = "<<FILL_IN_AZURE_CLIENT_ID>>"
-AZURE_SUBSCRIPTION_ID = "<<FILL_IN_AZURE_SUBSCRIPTION_ID>>"
-AZURE_RESOURCE_GROUP = "<<FILL_IN_AZURE_RESOURCE_GROUP>>"
-AZURE_VM_NAME = "<<FILL_IN_AZURE_VM_NAME>>"
+AZURE_TENANT_ID = "1ae64ddf-2821-4e98-928a-7e13926874c8"
+AZURE_CLIENT_ID = "88b6f17b-619b-4988-888d-94b086b74276"
+AZURE_SUBSCRIPTION_ID = "2d3d846b-c2bb-42a1-a0e9-f06813bb2d49"
+AZURE_RESOURCE_GROUP = "LATTICEJACK-ARM64-RG-2"
+AZURE_VM_NAME = "latticejack-arm64-runner"
 AZURE_API_VERSION = "2024-07-01"
 
 # Caps enforced from DO storage (source of truth - do NOT rely solely on
@@ -98,15 +98,12 @@ DEMO_SILENCE_TIMEOUT_SECONDS = "180"
 DEMO_VM_SCRIPT_PATH = "/opt/latticejack-demo-src/demo/run-demo.sh"
 
 # ---------------------------------------------------------------------------
-# Owner TODO before real deployment:
-#   - Fill in every <<FILL_IN_...>> placeholder above.
-#   - Fill in `account_id` below (find via `wrangler whoami`).
-#   - Set secrets: wrangler secret put AZURE_CLIENT_SECRET
-#                  wrangler secret put TURNSTILE_SECRET_KEY
-#   - Create the KV namespace: wrangler kv namespace create LAST_RUN_KV
-#   - Optionally add a custom domain / route below once DNS is set up:
-#       [[routes]]
-#       pattern = "<<FILL_IN_CUSTOM_DOMAIN>>"
-#       custom_domain = true
+# KV namespace, account_id, AZURE_CLIENT_SECRET and TURNSTILE_SECRET_KEY
+# secrets, and the itinerario.io route below are all filled in / set - see
+# demo/OWNER_SETUP.md §3 for how each was obtained.
 # ---------------------------------------------------------------------------
-account_id = "<<FILL_IN_CLOUDFLARE_ACCOUNT_ID>>"
+account_id = "543cb16addf56a6a7347588b8edca015"
+
+[[routes]]
+pattern = "latticejack.itinerario.io"
+custom_domain = true

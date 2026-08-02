@@ -95,18 +95,31 @@ locally, which is expected until this is deployed with real secrets.
 
 ### What's actually been verified vs. not
 
-See the top-level task's structured report for the current, honest state of
-`wrangler dev` startup verification and `npm test` coverage. In short: pure
-logic (state transitions, cap checks, Azure/Turnstile HTTP call shapes with a
-fake `fetch`) is unit-tested; the Durable Object's storage/alarm behavior and
-the cron trigger are exercised only insofar as `wrangler dev`'s local
-Miniflare simulation exercises them - real Azure calls, a real Turnstile
-widget, and a real 12-minute/3-minute alarm cycle are **not** verified here
-and can't be until deployed with real credentials.
+Local (`wrangler dev`/Miniflare): pure logic (state transitions, cap checks,
+Azure/Turnstile HTTP call shapes with a fake `fetch`) is unit-tested; the
+Durable Object's storage/alarm behavior and the cron trigger were exercised
+only insofar as Miniflare's local simulation exercises them.
 
-## Deployment (not done by this task - see wrangler.toml's inline TODO)
+**Since then, this Worker has been deployed for real and run end to end
+against real Azure and real Cloudflare infrastructure** - real AAD
+token/VM-start/VM-deallocate calls, a real Turnstile widget solved by a
+human in a real browser, the DO's alarm observed firing repeatedly on a
+real 45s timer via `wrangler tail`, and a full real demo run (all four
+`run-demo.sh` stages) streamed live through this Worker to a successful
+`done` state. See
+[`../README.md`](../README.md#then-deployed-live-and-run-for-real-against-real-azure-and-real-cloudflare)
+for the full account, including two real bugs found doing this for real
+(an AAD credential-propagation gotcha, and a stale VM-side env file
+missing `INGEST_URL`). Still not separately observed: the cron trigger
+itself firing (its sub-pieces are proven via the alarm path, but the
+15-minute `scheduled()` handler hasn't fired on its own clock yet), and
+rate-limit/spectator-mode behavior under real concurrent access.
 
-Fill in every `<<FILL_IN_...>>` placeholder in `wrangler.toml` and
+## Deployment
+
+Live at `latticejack.itinerario.io`. To redeploy or set up fresh: fill in
+every `<<FILL_IN_...>>` placeholder in `wrangler.toml` and
 `public/index.html`, create the KV namespace, set the two secrets
 (`AZURE_CLIENT_SECRET`, `TURNSTILE_SECRET_KEY`) with `wrangler secret put`,
-then `wrangler deploy`.
+then `wrangler deploy` - see
+[`../OWNER_SETUP.md`](../OWNER_SETUP.md) for the full, current checklist.
