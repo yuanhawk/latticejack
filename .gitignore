@@ -40,3 +40,11 @@ benchmarks/results/*.csv
 # both are reproducible from component-ai/README.md's exact commands.
 component-ai/llama.cpp/
 component-ai/models/
+
+# docs/video-production/output/: the rendered demo video + YouTube thumbnail.
+# Large generated binaries, same reasoning as component-ai/ above - not
+# reproducible by a single command (see docs/video-production/README.md's
+# "Not checked in" note on the manual ffmpeg compositing pass), but still
+# doesn't belong in git history. The real public copy lives on YouTube once
+# uploaded; this local copy is for convenience only.
+docs/video-production/output/
