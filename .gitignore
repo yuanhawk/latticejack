@@ -6,6 +6,8 @@ vendor/
 *.iml
 .vscode/
 .DS_Store
+__pycache__/
+*.pyc
 
 # Never commit - this repo is public. Nothing in this project's own code
 # reads a root-level .env (demo/worker/ has its own separate, already

@@ -29,6 +29,14 @@ Azure Cobalt 100 (Neoverse-N2) silicon, not simulated:
    *and* executed live against fresh input, not just narrated (see
    [executed review
    transcript](skills/pqc-authoring/examples/executed-review-transcript.md)).
+4. **Judges can trigger this project's own real Arm64 run themselves,
+   live, without asking anyone** — [latticejack.itinerario.io](https://latticejack.itinerario.io)
+   boots a real Azure Cobalt 100 VM on demand and streams its actual
+   output to the browser: classical TLS, hybrid PQC TLS, the native
+   ML-KEM provider, and a real local LLM request behind the migrated
+   handshake, then deallocates the VM automatically. Not a recording —
+   see [`demo/README.md`](demo/README.md) for the full architecture and
+   what's been verified on real infrastructure.
 
 Full detail, every caveat, and the two honest null results: below.
 
@@ -778,10 +786,19 @@ corrected below and in `benchmarks/arm-performix-profile/README.md`) it
 corroborates rather than fully resolves the open question it was pointed
 at.
 
-**No demo video.** Optional per the official rules, but explicitly called
-out as "high-leverage" - front-loaded, it would show `./run before` /
-`./run after` succeeding on real Arm64, the before/naive/tuned benchmark
-story, and the two Component C artifacts. Not made this session.
+**Update: a demo video now exists.** This section originally flagged no
+video as made. A ~2:37 video was recorded and edited this session,
+built around the live-demo web feature below rather than raw terminal
+commands: real screen capture of a real Azure VM run through
+`latticejack.itinerario.io` (Turnstile solved by a real human, all four
+stages passing, a real AI reply through the encrypted channel, real
+final numbers), DashScope-generated title cards, DashScope TTS
+narration. Full production account, including two real bugs found and
+fixed doing it for real (a long dead/frozen stretch that got cut rather
+than papered over, and TTS mispronouncing technical jargon that got
+reworded) - see `docs/video-production/README.md`. [Link to be added
+once uploaded to YouTube/Vimeo/Youku per the official rules' publication
+requirement.]
 
 **Update: the repository is now public.** This section originally flagged
 it as private and blocking - checked again directly via `gh repo view`,
